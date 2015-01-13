@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_activated="true"
+        android:drawable="@color/menu_item_activated_color"/>
+    <item android:drawable="@color/menu_item_default_color" />
+</selector>
