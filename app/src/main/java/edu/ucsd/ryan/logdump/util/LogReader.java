@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import edu.ucsd.ryan.logdump.data.LogStructure;
+import edu.ucsd.ryan.logdump.data.LogReadParam;
 
 /**
  * Created by ryan on 1/12/15.
@@ -19,24 +20,25 @@ public class LogReader {
     private static final String TAG = "LogReader";
     private static final boolean DEBUG = true;
 
-    public static void readLog(Context context, final String pkgFilter, final LogHandler handler) {
+    public static void readLogs(Context context, LogReadParam readParam, LogHandler handler) {
         CommandExecutor.simpleExecute(new String[]{LOGCAT_COMMAND}, false,
-                new LogOutputListener(context, pkgFilter, handler));
+                new LogOutputListener(context, readParam, handler));
     }
 
+
     private static class LogOutputListener implements CommandExecutor.OnCommandOutputListener {
-        private String mPkgFilter;
+        private LogReadParam mReadParam;
         private LogHandler mHandler;
         private List<String> mLogs;
         private String mPID;
 
-        public LogOutputListener(Context context, String pkgFilter, LogHandler handler) {
-            mPkgFilter = pkgFilter;
+        public LogOutputListener(Context context, LogReadParam readParam, LogHandler handler) {
+            mReadParam = readParam;
             mHandler = handler;
             mLogs = new ArrayList<>();
             mPID = null;
-            if (!TextUtils.isEmpty(pkgFilter)) {
-                int pid = PackageHelper.getInstance(context).getPID(pkgFilter);
+            if (!TextUtils.isEmpty(mReadParam.pkgFilter)) {
+                int pid = PackageHelper.getInstance(context).getPID(mReadParam.pkgFilter);
                 if (pid >= 0) {
                     mPID = String.valueOf(pid);
                     Log.d(TAG, "PID filter: " + mPID);
@@ -51,8 +53,9 @@ public class LogReader {
                 if (structure != null) {
                     if (structure.pid.equals(mPID)) {
                         if (mHandler != null)
-                            mHandler.newLog(mPkgFilter, structure);
-                        mLogs.add(output);
+                            mHandler.newLog(mReadParam.pkgFilter, structure);
+                        if (DEBUG)
+                            mLogs.add(output);
                     }
                 }
             }

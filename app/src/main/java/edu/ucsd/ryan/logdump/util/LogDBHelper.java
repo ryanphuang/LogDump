@@ -31,6 +31,23 @@ public class LogDBHelper extends SQLiteOpenHelper {
     public final static String SQL_DROP_LOG = "DROP TABLE IF EXISTS " +
             LogSchema.TABLE_NAME;
 
+
+    public static String getLevelFilterSelect(LogLevel level) {
+        if (level == null || level.equals(LogLevel.UNKNOWN))
+            return null;
+        int ordinal = level.ordinal();
+        StringBuilder sb = new StringBuilder();
+        for (; ordinal < LogLevel.values().length; ++ordinal) {
+            sb.append(LogSchema.COLUMN_LEVEL);
+            sb.append("='");
+            sb.append(LogLevel.getLevelLetter(ordinal));
+            sb.append("'");
+            if (ordinal != LogLevel.values().length - 1)
+                sb.append(" OR ");
+        }
+        return sb.toString();
+    }
+
     public LogDBHelper(Context context) {
         super(context, DBNAME, null, DBVER);
     }

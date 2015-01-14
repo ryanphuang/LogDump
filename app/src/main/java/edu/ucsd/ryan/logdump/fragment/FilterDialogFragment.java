@@ -81,7 +81,7 @@ public class FilterDialogFragment extends DialogFragment {
                                         selectedPkgs.remove(pkg);
                                     }
                                 } else {
-                                    Toast.makeText(getActivity(), "Fail to get cursor",
+                                    Toast.makeText(getActivity(), "Fail to head cursor",
                                             Toast.LENGTH_SHORT).show();
                                 }
                             }

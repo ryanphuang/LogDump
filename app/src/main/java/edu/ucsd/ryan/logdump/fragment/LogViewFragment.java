@@ -5,8 +5,8 @@ import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.database.Cursor;
-import android.graphics.Color;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.LoaderManager;
@@ -32,10 +32,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import edu.ucsd.ryan.logdump.R;
+import edu.ucsd.ryan.logdump.adapter.LogCursorAdapter;
 import edu.ucsd.ryan.logdump.data.LogContentProvider;
 import edu.ucsd.ryan.logdump.data.LogSchema;
+import edu.ucsd.ryan.logdump.data.LogStructure;
+import edu.ucsd.ryan.logdump.data.LogReadParam;
+import edu.ucsd.ryan.logdump.util.LogDBHelper;
+import edu.ucsd.ryan.logdump.util.LogHandler;
 import edu.ucsd.ryan.logdump.util.LogLevel;
-import edu.ucsd.ryan.logdump.util.LogParser;
+import edu.ucsd.ryan.logdump.util.LogReader;
 
 /**
  * A fragment representing a list of Items.
@@ -104,7 +109,7 @@ public class LogViewFragment extends Fragment implements AbsListView.OnItemClick
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         setEmptyText("No logs yet");
-        mAdapter = new LogCursorAdaptor(getActivity(), null, 0);
+        mAdapter = new LogCursorAdapter(getActivity(), null, 0);
         mListView.setAdapter(mAdapter);
         setListShown(false);
         getLoaderManager().initLoader(0, null, LogViewFragment.this);
@@ -292,28 +297,12 @@ public class LogViewFragment extends Fragment implements AbsListView.OnItemClick
         }
     }
 
-    private String getLevelFilterSelect() {
-        if (mLevelFilter == null || mLevelFilter.equals(LogLevel.UNKNOWN))
-            return null;
-        int ordinal = mLevelFilter.ordinal();
-        StringBuilder sb = new StringBuilder();
-        for (; ordinal < LogLevel.values().length; ++ordinal) {
-            sb.append(LogSchema.COLUMN_LEVEL);
-            sb.append("='");
-            sb.append(LogLevel.getLevelLetter(ordinal));
-            sb.append("'");
-            if (ordinal != LogLevel.values().length - 1)
-                sb.append(" OR ");
-        }
-        return sb.toString();
-    }
-
     @Override
     public Loader<Cursor> onCreateLoader(int id, Bundle args) {
         String select = "(" + LogSchema.COLUMN_PKGNAME + "=?)";
-        List<String> selectArgs = new ArrayList<String>();
+        List<String> selectArgs = new ArrayList<>();
         selectArgs.add(mFilterPkg);
-        String levelSelect = getLevelFilterSelect();
+        String levelSelect = LogDBHelper.getLevelFilterSelect(mLevelFilter);
         if (!TextUtils.isEmpty(levelSelect)) {
             select = select + " AND (" + levelSelect + ")";
             Log.d(TAG, "Level select " + levelSelect);
@@ -322,11 +311,11 @@ public class LogViewFragment extends Fragment implements AbsListView.OnItemClick
             select = select + " AND (" + LogSchema.COLUMN_TEXT + " LIKE ? COLLATE NOCASE)";
             selectArgs.add("%" + mContentFilter + "%");
         }
-        Uri uri = Uri.parse(LogContentProvider.CONTENT_URI_STR);
-        uri = uri.buildUpon().appendQueryParameter(LogContentProvider.LIMIT_KEY,
+        Uri uri = LogSchema.CONTENT_URI.buildUpon().appendQueryParameter(LogContentProvider.LIMIT_KEY,
                 String.valueOf(MAX_LOGS)).build();
         return new CursorLoader(getActivity(), uri,
-                LogSchema.DEFAULT_PROJECTION, select, selectArgs.toArray(new String[selectArgs.size()]),
+                LogSchema.DEFAULT_PROJECTION, select,
+                selectArgs.toArray(new String[selectArgs.size()]),
                 null);
     }
 
@@ -398,40 +387,73 @@ public class LogViewFragment extends Fragment implements AbsListView.OnItemClick
         public void onLogEntrySelected(Cursor cursor);
     }
 
-    public class LogCursorAdaptor extends CursorAdapter {
-        private LayoutInflater mInflater;
-        private int mDefaultColor;
+    public class RealTimeLogReadTask extends AsyncTask<LogReadParam, LogStructure, Void> {
 
-        public LogCursorAdaptor(Context context, Cursor c, int flags) {
-            super(context, c, flags);
-            mInflater = LayoutInflater.from(context);
-            mDefaultColor = getResources().getColor(R.color.log_text_color);
+        private Object mLock = new Object();
+        private volatile boolean mPaused;
+        private Runnable mOnLoaded;
+
+        @Override
+        protected void onPreExecute() {
+            mPaused = false;
         }
 
         @Override
-        public View newView(Context context, Cursor cursor, ViewGroup parent) {
-            return mInflater.inflate(R.layout.log_list_item, parent, false);
-        }
+        protected Void doInBackground(LogReadParam... params) {
+            LogHandler handler = new LogHandler() {
+                @Override
+                public void newLog(String pkg, LogStructure structure) {
+                    synchronized (mLock) {
+                        if (mPaused)
+                            try {
+                                mLock.wait();
+                            } catch (InterruptedException e) {
+                                e.printStackTrace();
+                            }
+                    }
+                    publishProgress(structure);
+                }
 
-        @Override
-        public void bindView(View view, Context context, Cursor cursor) {
-            String level = cursor.getString(cursor.getColumnIndex(LogSchema.COLUMN_LEVEL));
-            String tag = cursor.getString(cursor.getColumnIndex(LogSchema.COLUMN_TAG));
-            String content = cursor.getString(cursor.getColumnIndex(LogSchema.COLUMN_TEXT));
-            TextView levelTv = (TextView) view.findViewById(R.id.levelText);
-            TextView tagTv = (TextView) view.findViewById(R.id.tagText);
-            TextView contentTv = (TextView) view.findViewById(R.id.contentText);
-            levelTv.setText(level);
-            tagTv.setText(tag);
-            contentTv.setText(content);
-            LogLevel l = LogParser.getLevel(level);
-            if (l.ordinal() >= LogLevel.ERROR.ordinal()) {
-                levelTv.setTextColor(Color.RED);
-                contentTv.setTextColor(Color.RED);
-            } else {
-                levelTv.setTextColor(mDefaultColor);
-                contentTv.setTextColor(mDefaultColor);
+                @Override
+                public void doneLoading() {
+
+                }
+            };
+            for (LogReadParam param:params) {
+                LogReader.readLogs(getActivity(), param, handler);
             }
+            return null;
+        }
+
+        @Override
+        protected void onProgressUpdate(LogStructure... values) {
+
+        }
+
+        @Override
+        protected void onPostExecute(Void result) {
+            if (mPaused)
+                resume();
+            if (mOnLoaded != null)
+                mOnLoaded.run();
+        }
+
+        public void pause() {
+            synchronized (mLock) {
+                mPaused = true;
+            }
+
+        }
+
+        public void resume() {
+            synchronized (mLock) {
+                mPaused = false;
+                mLock.notify();
+            }
+        }
+
+        public void setOnLoadedRunnable(Runnable loaded) {
+            mOnLoaded = loaded;
         }
     }
 }

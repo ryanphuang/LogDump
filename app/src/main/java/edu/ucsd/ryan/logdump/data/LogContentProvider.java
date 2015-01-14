@@ -5,11 +5,14 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.UriMatcher;
 import android.database.Cursor;
+import android.database.DatabaseUtils;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.text.TextUtils;
+
+import java.util.HashMap;
 
 import edu.ucsd.ryan.logdump.util.LogDBHelper;
 
@@ -18,23 +21,25 @@ import edu.ucsd.ryan.logdump.util.LogDBHelper;
  */
 public class LogContentProvider extends ContentProvider {
 
-    private static final String AUTHORITY = "edu.ucsd.ryan.logdump.logprovider";
-    private static final String BASE_PATH = "log";
-    private static final String SCHEME = "content://";
-
-    public final static String CONTENT_URI_STR = SCHEME + AUTHORITY + "/" + BASE_PATH;
-    public final static Uri CONTENT_URI = Uri.parse(CONTENT_URI_STR);
+    public static final String AUTHORITY = "edu.ucsd.ryan.logdump.logprovider";
+    public static final String SCHEME = "content://";
+    public static final String VENDOR = "vnd.edu.ucsd.ryan.logdump";
 
     public final static String LIMIT_KEY = "LIMIT";
 
-    private static final int LOGS = 1;
+    private static final int LOG = 1;
     private static final int LOG_ID = 2;
 
     private static final UriMatcher sUriMatcher = new UriMatcher(UriMatcher.NO_MATCH);
+    private static final HashMap<String, String> mLogProjectionMap;
 
     static {
-        sUriMatcher.addURI(AUTHORITY, BASE_PATH, LOGS);
-        sUriMatcher.addURI(AUTHORITY, BASE_PATH + "/#", LOG_ID);
+        sUriMatcher.addURI(AUTHORITY, LogSchema.TABLE_NAME, LOG);
+        sUriMatcher.addURI(AUTHORITY, LogSchema.TABLE_NAME + "/#", LOG_ID);
+        mLogProjectionMap = new HashMap<>();
+        for (String column:LogSchema.DEFAULT_PROJECTION) {
+            mLogProjectionMap.put(column, column);
+        }
     }
 
     private LogDBHelper mDBHelper;
@@ -47,32 +52,29 @@ public class LogContentProvider extends ContentProvider {
 
     @Override
     public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-        String tableName;
-        String where = null;
+        SQLiteQueryBuilder queryBuilder = new SQLiteQueryBuilder();
+        queryBuilder.setTables(LogSchema.TABLE_NAME);
         String limit = null;
-        int type = sUriMatcher.match(uri);
-        switch (type) {
-            case LOGS:
-                tableName = LogSchema.TABLE_NAME;
+        switch (sUriMatcher.match(uri)) {
+            case LOG:
+                queryBuilder.setProjectionMap(mLogProjectionMap);
                 limit = uri.getQueryParameter(LIMIT_KEY);
-                if (TextUtils.isEmpty(sortOrder))
-                    sortOrder = "_ID DESC";
                 break;
             case LOG_ID:
-                tableName = LogSchema.TABLE_NAME;
-                where = LogSchema._ID + "="
-                        + uri.getLastPathSegment();
+                queryBuilder.setProjectionMap(mLogProjectionMap);
+                queryBuilder.appendWhere(LogSchema._ID + "=?");
+                DatabaseUtils.appendSelectionArgs(selectionArgs,
+                        new String[]{uri.getLastPathSegment()});
                 break;
             default:
                 throw new IllegalArgumentException("Unrecognized URI: " + uri);
         }
-        SQLiteQueryBuilder queryBuilder = new SQLiteQueryBuilder();
-        queryBuilder.setTables(tableName);
-        if (!TextUtils.isEmpty(where)) {
-            queryBuilder.appendWhere(where);
+        if (TextUtils.isEmpty(sortOrder)) {
+            sortOrder = LogSchema.DEFAULT_SORT_ORDER;
         }
         SQLiteDatabase db = mDBHelper.getReadableDatabase();
-        Cursor cursor = queryBuilder.query(db, projection, selection, selectionArgs, null, null,
+        Cursor cursor = queryBuilder.query(db, projection, selection,
+                selectionArgs, null, null,
                 sortOrder, limit);
         cursor.setNotificationUri(getContext().getContentResolver(), uri);
         return cursor;
@@ -80,25 +82,28 @@ public class LogContentProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
-        return null;
+        switch (sUriMatcher.match(uri)) {
+            case LOG:
+                return LogSchema.CONTENT_TYPE;
+            case LOG_ID:
+                return LogSchema.CONTENT_ITEM_TYPE;
+            default:
+                throw new IllegalArgumentException("Unknown URI " + uri);
+        }
     }
 
     @Override
     public Uri insert(Uri uri, ContentValues values) {
+        if (sUriMatcher.match(uri) != LOG) {
+            // Can only insert into to log URI.
+            throw new IllegalArgumentException("Unrecognized URI: " + uri);
+        }
         SQLiteDatabase db = mDBHelper.getWritableDatabase();
-        int type = sUriMatcher.match(uri);
-        long id;
-        switch (type) {
-            case LOGS:
-                id = db.insert(LogSchema.TABLE_NAME, null, values);
-                if (id >= 0) {
-                    Uri newUri = ContentUris.withAppendedId(CONTENT_URI, id);
-                    getContext().getContentResolver().notifyChange(uri, null);
-                    return newUri;
-                }
-                break;
-            default:
-                throw new IllegalArgumentException("Unrecognized URI: " + uri);
+        long id = db.insert(LogSchema.TABLE_NAME, null, values);
+        if (id > 0) {
+            Uri newUri = ContentUris.withAppendedId(LogSchema.CONTENT_ID_URI_BASE, id);
+            getContext().getContentResolver().notifyChange(uri, null);
+            return newUri;
         }
         throw new SQLException("Failed to insert row into " + uri);
     }
@@ -106,20 +111,16 @@ public class LogContentProvider extends ContentProvider {
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
         SQLiteDatabase db = mDBHelper.getWritableDatabase();
-        int type = sUriMatcher.match(uri);
-        int rowsDeleted = 0;
-        switch (type) {
-            case LOGS:
+        int rowsDeleted;
+        switch (sUriMatcher.match(uri)) {
+            case LOG:
                 rowsDeleted = db.delete(LogSchema.TABLE_NAME, selection, selectionArgs);
                 break;
 
             case LOG_ID:
-                String where = LogSchema._ID + " = " +
-                        uri.getLastPathSegment();
-                if (!TextUtils.isEmpty(selection)) {
-                    where = where + " AND " + selection;
-                }
-                rowsDeleted = db.delete(LogSchema.TABLE_NAME, where, selectionArgs);
+                String finaSelection = DatabaseUtils.concatenateWhere(
+                    LogSchema._ID + " = " + ContentUris.parseId(uri), selection);
+                rowsDeleted = db.delete(LogSchema.TABLE_NAME, finaSelection, selectionArgs);
                 break;
             default:
                 throw new IllegalArgumentException("Unrecognized URI: " + uri);
@@ -131,22 +132,18 @@ public class LogContentProvider extends ContentProvider {
     @Override
     public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         SQLiteDatabase db = mDBHelper.getWritableDatabase();
-        int type = sUriMatcher.match(uri);
-        int rowsUpdated = 0;
-        switch (type) {
-            case LOGS:
+        int rowsUpdated;
+        switch (sUriMatcher.match(uri)) {
+            case LOG:
                 rowsUpdated = db.update(LogSchema.TABLE_NAME, values,
                         selection, selectionArgs);
                 break;
 
             case LOG_ID:
-                String where = LogSchema._ID + " = " +
-                        uri.getLastPathSegment();
-                if (!TextUtils.isEmpty(selection)) {
-                    where = where + " AND " + selection;
-                }
+                String finaSelection = DatabaseUtils.concatenateWhere(
+                        LogSchema._ID + " = " + ContentUris.parseId(uri), selection);
                 rowsUpdated = db.update(LogSchema.TABLE_NAME, values,
-                        where, selectionArgs);
+                        finaSelection, selectionArgs);
                 break;
             default:
                 throw new IllegalArgumentException("Unrecognized URI: " + uri);

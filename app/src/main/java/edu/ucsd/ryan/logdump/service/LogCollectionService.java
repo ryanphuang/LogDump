@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import edu.ucsd.ryan.logdump.data.FilterSchema;
+import edu.ucsd.ryan.logdump.data.LogReadParam;
 import edu.ucsd.ryan.logdump.data.LogSchema;
 import edu.ucsd.ryan.logdump.data.LogStructure;
 import edu.ucsd.ryan.logdump.util.FilterDBHelper;
@@ -150,41 +151,29 @@ public class LogCollectionService extends Service {
         }
     };
 
-    private class LogInsertDBHandler implements LogHandler {
-        private OnLogsLoadedListener mListener;
-        private SQLiteDatabase mLogDB;
-
-        public LogInsertDBHandler(OnLogsLoadedListener listener) {
-            LogDBHelper logDBHelper = new LogDBHelper(LogCollectionService.this);
-            mLogDB = logDBHelper.getWritableDatabase();
-            mListener = listener;
-        }
-
-        @Override
-        public void newLog(String pkg, LogStructure structure) {
-            insertLog(mLogDB, pkg, structure);
-        }
-
-        @Override
-        public void doneLoading() {
-            mLogDB.close();
-            if (mListener != null)
-                mListener.onLogsLoaded();
-        }
-    }
-
     private class LogCollectionRunnable implements Runnable {
         private String mPKG;
         private LogHandler mHandler;
 
-        public LogCollectionRunnable(String pkg, OnLogsLoadedListener listener) {
+        public LogCollectionRunnable(String pkg) {
             mPKG = pkg;
-            mHandler = new LogInsertDBHandler(listener);
+            mHandler = new LogHandler() {
+                @Override
+                public void newLog(String pkg, LogStructure structure) {
+                    insertLog(pkg, structure);
+                }
+
+                @Override
+                public void doneLoading() {
+
+                }
+            };
         }
 
         @Override
         public void run() {
-            LogReader.readLog(LogCollectionService.this, mPKG, mHandler);
+            LogReadParam param = new LogReadParam(mPKG, null, null);
+            LogReader.readLogs(LogCollectionService.this, param, mHandler);
         }
     }
 
@@ -196,19 +185,15 @@ public class LogCollectionService extends Service {
     public void collectLogs() {
         for (String filter:mFilters) {
             Log.d(TAG, "Collect logs for " + filter);
-            collectLog(filter, null);
+            collectLog(filter);
         }
     }
 
-    public void collectLog(String pkg, OnLogsLoadedListener listener) {
-        new Thread(new LogCollectionRunnable(pkg, listener)).start();
+    public void collectLog(String pkg) {
+        new Thread(new LogCollectionRunnable(pkg)).start();
     }
 
-    public static interface OnLogsLoadedListener {
-        void onLogsLoaded();
-    }
-
-    private void insertLog(SQLiteDatabase db, String pkg, LogStructure structure) {
+    private void insertLog(String pkg, LogStructure structure) {
         ContentValues values = new ContentValues();
         values.put(LogSchema.COLUMN_PKGNAME, pkg);
         values.put(LogSchema.COLUMN_APP, PackageHelper.getInstance(this).getName(pkg));
@@ -216,7 +201,7 @@ public class LogCollectionService extends Service {
         values.put(LogSchema.COLUMN_LEVEL, structure.level);
         values.put(LogSchema.COLUMN_TAG, structure.tag);
         values.put(LogSchema.COLUMN_TEXT, structure.text);
-        db.insert(LogSchema.TABLE_NAME, null, values);
+        getContentResolver().insert(LogSchema.CONTENT_URI, values);
     }
 
     public class LocalBinder extends Binder {

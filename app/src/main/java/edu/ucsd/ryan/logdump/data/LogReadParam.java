@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.task;
+package edu.ucsd.ryan.logdump.data;
 
 import java.util.List;
 
