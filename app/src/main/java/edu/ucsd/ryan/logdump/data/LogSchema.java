@@ -33,7 +33,7 @@ public class LogSchema implements BaseColumns {
      */
     public static final String CONTENT_ITEM_TYPE = "vnd.android.cursor.item/" + LogContentProvider.VENDOR;
 
-    public static final String DEFAULT_SORT_ORDER = "_ID DESC";
+    public static final String DEFAULT_SORT_ORDER = _ID + " ASC";
 
 
     public static final String COLUMN_PKGNAME = "package";

@@ -9,7 +9,7 @@ import edu.ucsd.ryan.logdump.data.LogStructure;
  * Created by ryan on 1/12/15.
  */
 public class LogParser {
-    public static String PATTERN_STR = "([0-9-:. ]+?) ([VDIWEFS])/(.+?)\\((?:  )?(\\d+)\\):(.+)";
+    public static String PATTERN_STR = "([0-9-:. ]+?) ([VDIWEFS])/(.+?)\\( *?(\\d+)\\):(.+)";
     public static Pattern PATTERN = Pattern.compile(PATTERN_STR);
 
     public static LogStructure parse(String log) {

@@ -25,7 +25,6 @@ import edu.ucsd.ryan.logdump.data.LogReadParam;
 import edu.ucsd.ryan.logdump.data.LogSchema;
 import edu.ucsd.ryan.logdump.data.LogStructure;
 import edu.ucsd.ryan.logdump.util.FilterDBHelper;
-import edu.ucsd.ryan.logdump.util.LogDBHelper;
 import edu.ucsd.ryan.logdump.util.LogHandler;
 import edu.ucsd.ryan.logdump.util.LogReader;
 import edu.ucsd.ryan.logdump.util.PackageHelper;
@@ -152,11 +151,11 @@ public class LogCollectionService extends Service {
     };
 
     private class LogCollectionRunnable implements Runnable {
-        private String mPKG;
+        private LogReadParam mParam;
         private LogHandler mHandler;
 
-        public LogCollectionRunnable(String pkg) {
-            mPKG = pkg;
+        public LogCollectionRunnable(LogReadParam param) {
+            mParam = param;
             mHandler = new LogHandler() {
                 @Override
                 public void newLog(String pkg, LogStructure structure) {
@@ -172,8 +171,7 @@ public class LogCollectionService extends Service {
 
         @Override
         public void run() {
-            LogReadParam param = new LogReadParam(mPKG, null, null);
-            LogReader.readLogs(LogCollectionService.this, param, mHandler);
+            LogReader.readLogs(LogCollectionService.this, mParam, mHandler);
         }
     }
 
@@ -183,14 +181,9 @@ public class LogCollectionService extends Service {
     }
 
     public void collectLogs() {
-        for (String filter:mFilters) {
-            Log.d(TAG, "Collect logs for " + filter);
-            collectLog(filter);
-        }
-    }
-
-    public void collectLog(String pkg) {
-        new Thread(new LogCollectionRunnable(pkg)).start();
+        Log.d(TAG, "Collect logs for " + mFilters);
+        LogReadParam param = new LogReadParam(mFilters, null, null);
+        new Thread(new LogCollectionRunnable(param)).start();
     }
 
     private void insertLog(String pkg, LogStructure structure) {

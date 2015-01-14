@@ -4,6 +4,7 @@ import android.app.ActivityManager;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.text.TextUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +34,8 @@ public class PackageHelper {
     }
 
     public int getPID(String pkgName) {
+        if (TextUtils.isEmpty(pkgName))
+            return -1;
         List<ActivityManager.RunningAppProcessInfo> runInfo = mAM.getRunningAppProcesses();
         for (ActivityManager.RunningAppProcessInfo info:runInfo) {
             int pid = -1;

@@ -8,7 +8,10 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
 import edu.ucsd.ryan.logdump.data.LogStructure;
 import edu.ucsd.ryan.logdump.data.LogReadParam;
 
@@ -25,38 +28,46 @@ public class LogReader {
                 new LogOutputListener(context, readParam, handler));
     }
 
-
     private static class LogOutputListener implements CommandExecutor.OnCommandOutputListener {
         private LogReadParam mReadParam;
         private LogHandler mHandler;
         private List<String> mLogs;
-        private String mPID;
+        private Map<String, String> mPkgPidMap;
 
         public LogOutputListener(Context context, LogReadParam readParam, LogHandler handler) {
             mReadParam = readParam;
             mHandler = handler;
             mLogs = new ArrayList<>();
-            mPID = null;
-            if (!TextUtils.isEmpty(mReadParam.pkgFilter)) {
-                int pid = PackageHelper.getInstance(context).getPID(mReadParam.pkgFilter);
-                if (pid >= 0) {
-                    mPID = String.valueOf(pid);
-                    Log.d(TAG, "PID filter: " + mPID);
+            mPkgPidMap = new HashMap<>();
+            if (mReadParam.pkgFilters != null) {
+                for (String pkg:mReadParam.pkgFilters) {
+                    int pid = PackageHelper.getInstance(context).getPID(pkg);
+                    if (pid >= 0) {
+                        mPkgPidMap.put(pkg, String.valueOf(pid));
+                        Log.d(TAG, pkg + " has pid filter " + pid);
+                    }
                 }
             }
         }
 
         @Override
         public void onCommandOutput(String output) {
-            if (!TextUtils.isEmpty(mPID) && output.contains(mPID)) {
-                LogStructure structure = LogParser.parse(output);
-                if (structure != null) {
-                    if (structure.pid.equals(mPID)) {
-                        if (mHandler != null)
-                            mHandler.newLog(mReadParam.pkgFilter, structure);
-                        if (DEBUG)
-                            mLogs.add(output);
-                    }
+            LogStructure structure = LogParser.parse(output);
+            if (structure == null) {
+                // Ill-formated log, no need to do filter
+                mLogs.add("Bad: " + output);
+                return;
+            }
+            for (Map.Entry<String, String> pidEntry:mPkgPidMap.entrySet()) {
+                String pkg = pidEntry.getKey();
+                String pid = pidEntry.getValue();
+                if (structure.pid.equals(pid)) {
+                    // Match one filter!
+                    if (mHandler != null)
+                        mHandler.newLog(pkg, structure);
+                    if (DEBUG)
+                        mLogs.add(output);
+                    return;
                 }
             }
         }
@@ -67,6 +78,7 @@ public class LogReader {
                 mHandler.doneLoading();
             if (DEBUG) {
                 if (mLogs.size() > 0) {
+                    Log.i(TAG, "Collected " + mLogs.size() + " logs");
                     File f = new File("/sdcard/logs.txt");
                     try {
                         FileWriter fileWriter = new FileWriter(f);

@@ -14,10 +14,10 @@ import android.support.v7.app.ActionBarActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import edu.ucsd.ryan.logdump.fragment.LogHistoryFragment;
 import edu.ucsd.ryan.logdump.service.LogCollectionService;
 import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
 import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
-import edu.ucsd.ryan.logdump.fragment.LogViewFragment;
 import edu.ucsd.ryan.logdump.util.FilterDBRunnable;
 import edu.ucsd.ryan.logdump.util.PackageHelper;
 
@@ -25,7 +25,7 @@ import edu.ucsd.ryan.logdump.util.PackageHelper;
 public class MainActivity extends ActionBarActivity
         implements FilterDrawerFragment.FilterDrawerCallbacks,
         FilterDialogFragment.FilterDialogListener,
-        LogViewFragment.OnLogEntrySelectedListener {
+        LogHistoryFragment.OnLogEntrySelectedListener {
 
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
@@ -70,7 +70,7 @@ public class MainActivity extends ActionBarActivity
     public void onFilterDrawerItemSelected(String filter) {
         // update the main content by replacing fragments
         mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
-        LogViewFragment fragment = LogViewFragment.newInstance(filter);
+        LogHistoryFragment fragment = LogHistoryFragment.newInstance(filter);
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
                 .replace(R.id.container, fragment)
@@ -145,7 +145,7 @@ public class MainActivity extends ActionBarActivity
     }
 
     @Override
-    public void onLogEntrySelected(Cursor cursor) {
+    public void onLogEntrySelected(Object data) {
 
     }
 
