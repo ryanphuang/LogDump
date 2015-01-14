@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.fragments;
+package edu.ucsd.ryan.logdump.fragment;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -34,8 +34,8 @@ import java.util.List;
 import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.data.LogContentProvider;
 import edu.ucsd.ryan.logdump.data.LogSchema;
-import edu.ucsd.ryan.logdump.utils.LogLevel;
-import edu.ucsd.ryan.logdump.utils.LogParser;
+import edu.ucsd.ryan.logdump.util.LogLevel;
+import edu.ucsd.ryan.logdump.util.LogParser;
 
 /**
  * A fragment representing a list of Items.

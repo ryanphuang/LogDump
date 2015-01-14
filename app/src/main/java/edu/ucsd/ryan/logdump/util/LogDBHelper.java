@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.utils;
+package edu.ucsd.ryan.logdump.util;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;

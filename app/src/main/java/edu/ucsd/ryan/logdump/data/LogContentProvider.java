@@ -11,8 +11,7 @@ import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.text.TextUtils;
 
-import edu.ucsd.ryan.logdump.utils.LogDBHelper;
-import edu.ucsd.ryan.logdump.data.LogSchema;
+import edu.ucsd.ryan.logdump.util.LogDBHelper;
 
 /**
  * Created by ryan on 1/12/15.

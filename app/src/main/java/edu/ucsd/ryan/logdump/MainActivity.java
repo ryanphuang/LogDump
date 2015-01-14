@@ -15,11 +15,11 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 import edu.ucsd.ryan.logdump.service.LogCollectionService;
-import edu.ucsd.ryan.logdump.fragments.FilterDialogFragment;
-import edu.ucsd.ryan.logdump.fragments.FilterDrawerFragment;
-import edu.ucsd.ryan.logdump.fragments.LogViewFragment;
-import edu.ucsd.ryan.logdump.utils.FilterDBRunnable;
-import edu.ucsd.ryan.logdump.utils.PackageHelper;
+import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
+import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
+import edu.ucsd.ryan.logdump.fragment.LogViewFragment;
+import edu.ucsd.ryan.logdump.util.FilterDBRunnable;
+import edu.ucsd.ryan.logdump.util.PackageHelper;
 
 
 public class MainActivity extends ActionBarActivity

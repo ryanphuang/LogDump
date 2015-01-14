@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.utils;
+package edu.ucsd.ryan.logdump.util;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

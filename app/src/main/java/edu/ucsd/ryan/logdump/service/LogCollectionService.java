@@ -20,15 +20,15 @@ import android.widget.Toast;
 import java.util.HashSet;
 import java.util.Set;
 
-import edu.ucsd.ryan.logdump.utils.FilterDBHelper;
-import edu.ucsd.ryan.logdump.utils.LogDBHelper;
-import edu.ucsd.ryan.logdump.utils.LogHandler;
-import edu.ucsd.ryan.logdump.utils.LogReader;
-import edu.ucsd.ryan.logdump.utils.PackageHelper;
 import edu.ucsd.ryan.logdump.data.FilterSchema;
 import edu.ucsd.ryan.logdump.data.LogSchema;
 import edu.ucsd.ryan.logdump.data.LogStructure;
-import edu.ucsd.ryan.logdump.utils.CommandExecutor;
+import edu.ucsd.ryan.logdump.util.FilterDBHelper;
+import edu.ucsd.ryan.logdump.util.LogDBHelper;
+import edu.ucsd.ryan.logdump.util.LogHandler;
+import edu.ucsd.ryan.logdump.util.LogReader;
+import edu.ucsd.ryan.logdump.util.PackageHelper;
+import eu.chainfire.libsuperuser.Shell;
 
 public class LogCollectionService extends Service {
     public static final String TAG = "LogCollectionService";
@@ -55,19 +55,23 @@ public class LogCollectionService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             String pkgName = getPackageName();
             if (getPackageManager().checkPermission(Manifest.permission.READ_LOGS, pkgName) != 0) {
-                String grantCommand = "pm grant "+ pkgName + " "+ android.Manifest.permission.READ_LOGS;
-                boolean ok = false;
-                if (CommandExecutor.execute(new String[]{grantCommand}, true, null)) {
-                    if (getPackageManager().checkPermission(Manifest.permission.READ_LOGS, pkgName) != 0) {
-                        Toast.makeText(LogCollectionService.this, "Read logs permission granted!",
-                                Toast.LENGTH_SHORT).show();
-                        ok = true;
+                if (!Shell.SU.available()) {
+                    Log.e(TAG, "Don't have root permission to read logs");
+                } else {
+                    String grantCommand = "pm grant "+ pkgName + " "+ android.Manifest.permission.READ_LOGS;
+                    boolean ok = false;
+                    if (Shell.SU.run(new String[]{grantCommand}) != null) {
+                        if (getPackageManager().checkPermission(Manifest.permission.READ_LOGS, pkgName) != 0) {
+                            Toast.makeText(LogCollectionService.this, "Read logs permission granted!",
+                                    Toast.LENGTH_SHORT).show();
+                            ok = true;
+                        }
                     }
+                    if (ok)
+                        Log.i(TAG, "Read logs permission granted!");
+                    else
+                        Log.e(TAG, "Fail to grant read logs permission");
                 }
-                if (ok)
-                    Log.i(TAG, "Read logs permission granted!");
-                else
-                    Log.e(TAG, "Fail to grant read logs permission");
             } else {
                 Log.d(TAG, "We have read logs permission");
             }

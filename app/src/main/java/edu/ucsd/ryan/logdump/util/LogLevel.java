@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.utils;
+package edu.ucsd.ryan.logdump.util;
 
 /**
  * Created by ryan on 1/13/15.

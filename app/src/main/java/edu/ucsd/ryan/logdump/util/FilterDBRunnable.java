@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.utils;
+package edu.ucsd.ryan.logdump.util;
 
 import android.content.ContentValues;
 import android.content.Context;
@@ -9,7 +9,6 @@ import android.database.sqlite.SQLiteDatabase;
 import java.util.List;
 
 import edu.ucsd.ryan.logdump.data.FilterSchema;
-import edu.ucsd.ryan.logdump.utils.FilterDBHelper;
 
 /**
  * Created by ryan on 1/11/15.

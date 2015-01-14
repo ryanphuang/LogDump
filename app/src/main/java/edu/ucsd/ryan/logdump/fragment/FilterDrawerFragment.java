@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.fragments;
+package edu.ucsd.ryan.logdump.fragment;
 
 import android.app.AlertDialog;
 import android.content.ContentValues;
@@ -34,7 +34,7 @@ import android.widget.Toast;
 
 import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.data.FilterSchema;
-import edu.ucsd.ryan.logdump.utils.FilterDBHelper;
+import edu.ucsd.ryan.logdump.util.FilterDBHelper;
 
 /**
  * Fragment used for managing interactions for and presentation of a navigation drawer.

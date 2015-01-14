@@ -1,4 +1,4 @@
-package edu.ucsd.ryan.logdump.fragments;
+package edu.ucsd.ryan.logdump.fragment;
 
 import android.app.Activity;
 import android.app.AlertDialog;
@@ -16,7 +16,7 @@ import java.util.Set;
 
 import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.data.FilterSchema;
-import edu.ucsd.ryan.logdump.utils.FilterDBHelper;
+import edu.ucsd.ryan.logdump.util.FilterDBHelper;
 
 /**
  * Created by ryan on 1/11/15.
