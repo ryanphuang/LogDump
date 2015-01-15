@@ -39,7 +39,7 @@ import edu.ucsd.ryan.logdump.util.LogLevel;
 public abstract class LogBaseFragment extends Fragment implements AbsListView.OnItemClickListener,
         SearchView.OnQueryTextListener, SearchView.OnCloseListener {
 
-    protected static final int MAX_LOGS = 100;
+    protected static final int MAX_LOGS = 512;
 
     protected static final String ARG_PKG = "pkg";
 

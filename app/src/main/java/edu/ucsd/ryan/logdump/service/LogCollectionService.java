@@ -17,7 +17,9 @@ import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import edu.ucsd.ryan.logdump.data.FilterSchema;
@@ -151,11 +153,11 @@ public class LogCollectionService extends Service {
     };
 
     private class LogCollectionRunnable implements Runnable {
-        private LogReadParam mParam;
+        private List<LogReadParam> mParams;
         private LogHandler mHandler;
 
-        public LogCollectionRunnable(LogReadParam param) {
-            mParam = param;
+        public LogCollectionRunnable(List<LogReadParam> params) {
+            mParams = params;
             mHandler = new LogHandler() {
                 @Override
                 public void newLog(String pkg, LogStructure structure) {
@@ -164,14 +166,14 @@ public class LogCollectionService extends Service {
 
                 @Override
                 public void doneLoading() {
-
                 }
             };
         }
 
         @Override
         public void run() {
-            LogReader.readLogs(LogCollectionService.this, mParam, mHandler);
+            LogReader reader = new LogReader(LogCollectionService.this, mParams, mHandler);
+            reader.start();
         }
     }
 
@@ -182,8 +184,11 @@ public class LogCollectionService extends Service {
 
     public void collectLogs() {
         Log.d(TAG, "Collect logs for " + mFilters);
-        LogReadParam param = new LogReadParam(mFilters, null, null);
-        new Thread(new LogCollectionRunnable(param)).start();
+        List<LogReadParam> params = new ArrayList<>();
+        for (String pkg:mFilters) {
+            params.add(new LogReadParam(pkg, null, null));
+        }
+        new Thread(new LogCollectionRunnable(params)).start();
     }
 
     private void insertLog(String pkg, LogStructure structure) {

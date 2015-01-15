@@ -229,12 +229,6 @@ public class FilterDrawerFragment extends Fragment {
                 null, null, FilterSchema.COLUMN_PKGNAME);
 
         mDrawerListAdapter = new FilterCursorAdapter(getActivity(), cursor, 0);
-        /*
-        mDrawerListAdapter = new SimpleCursorAdapter(getActivity(),
-                    R.layout.filter_list_item, cursor,
-                    new String[]{FilterSchema.COLUMN_PKGNAME},
-                    new int[]{R.id.filterText}, 0);
-        */
         mDrawerListView.setAdapter(mDrawerListAdapter);
     }
 
@@ -244,12 +238,13 @@ public class FilterDrawerFragment extends Fragment {
         if (mDrawerListView != null) {
             mDrawerListView.setItemChecked(position, true);
             Cursor cursor = (Cursor) mDrawerListView.getItemAtPosition(position);
-            filterPkg = cursor.getString(1);
+            if (!cursor.isBeforeFirst() && !cursor.isAfterLast())
+                filterPkg = cursor.getString(1);
         }
         if (mDrawerLayout != null) {
             mDrawerLayout.closeDrawer(mFragmentContainerView);
         }
-        if (mCallbacks != null && !TextUtils.isEmpty(filterPkg)) {
+        if (mCallbacks != null) {
             mCallbacks.onFilterDrawerItemSelected(filterPkg);
         }
     }
@@ -368,6 +363,7 @@ public class FilterDrawerFragment extends Fragment {
                                             Toast.makeText(getActivity(), filter + " deleted",
                                                     Toast.LENGTH_SHORT).show();
                                         refreshDrawerList();
+                                        selectItem(0);
                                     }
                                 })
                                 .setNegativeButton("No", null)

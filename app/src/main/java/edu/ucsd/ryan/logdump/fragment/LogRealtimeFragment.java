@@ -4,25 +4,28 @@ package edu.ucsd.ryan.logdump.fragment;
  * Created by ryan on 1/14/15.
  */
 
+import android.content.AsyncTaskLoader;
+import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.AdapterView;
-import android.widget.CursorAdapter;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
-import edu.ucsd.ryan.logdump.adapter.LogCursorAdapter;
+import edu.ucsd.ryan.logdump.adapter.LogCircularBufferAdapter;
 import edu.ucsd.ryan.logdump.data.LogReadParam;
 import edu.ucsd.ryan.logdump.data.LogStructure;
+import edu.ucsd.ryan.logdump.util.CircularBuffer;
 import edu.ucsd.ryan.logdump.util.LogHandler;
 import edu.ucsd.ryan.logdump.util.LogReader;
 
 
-public class LogRealtimeFragment extends LogBaseFragment implements
-        LoaderManager.LoaderCallbacks<List<LogStructure>> {
+public class LogRealtimeFragment extends LogBaseFragment  {
 
     public static final String TAG = "LogRealtimeFragment";
 
@@ -30,7 +33,7 @@ public class LogRealtimeFragment extends LogBaseFragment implements
      * The Adapter which will be used to populate the ListView/GridView with
      * Views.
      */
-    private CursorAdapter mAdapter;
+    private LogCircularBufferAdapter mAdapter;
 
     public static LogRealtimeFragment newInstance(String filterPkg) {
         LogRealtimeFragment fragment = new LogRealtimeFragment();
@@ -60,14 +63,21 @@ public class LogRealtimeFragment extends LogBaseFragment implements
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         setEmptyText("No logs yet");
-        mAdapter = new LogCursorAdapter(getActivity(), null, 0);
+        CircularBuffer buffer = new CircularBuffer(MAX_LOGS);
+        mAdapter = new LogCircularBufferAdapter(getActivity(), buffer, mFlushTop);
         mListView.setAdapter(mAdapter);
         setListShown(false);
-        getLoaderManager().initLoader(0, null, LogRealtimeFragment.this);
+
+        LogReadTask task = new LogReadTask(false);
+        if (!TextUtils.isEmpty(mFilterPkg)) {
+            task.execute(new LogReadParam(mFilterPkg, null, null));
+        } else {
+            task.execute();
+        }
     }
 
     public void reloadLogs() {
-        getLoaderManager().restartLoader(0, null, this);
+
     }
 
     @Override
@@ -84,89 +94,103 @@ public class LogRealtimeFragment extends LogBaseFragment implements
         }
     }
 
-    @Override
-    public Loader<List<LogStructure>> onCreateLoader(int id, Bundle args) {
-        return null;
+    private void loadFinished() {
+        mAdapter.notifyDataSetChanged();
+        // The list should now be shown.
+        if (isResumed()) {
+            setListShown(true);
+        } else {
+            setListShownNoAnimation(true);
+        }
     }
 
-    @Override
-    public void onLoadFinished(Loader<List<LogStructure>> loader, List<LogStructure> data) {
+    public class LogAsyncLoader extends AsyncTaskLoader<List<LogStructure>> {
 
+        public LogAsyncLoader(Context context) {
+            super(context);
+        }
+
+        @Override
+        public List<LogStructure> loadInBackground() {
+            return null;
+        }
     }
 
-    @Override
-    public void onLoaderReset(Loader<List<LogStructure>> loader) {
+    public class LogReadTask extends AsyncTask<LogReadParam, LogStructure, Void> {
 
-    }
-
-
-    public class RealTimeLogReadTask extends AsyncTask<LogReadParam, LogStructure, Void> {
-
-        private Object mLock = new Object();
+        private LogReader mReader;
         private volatile boolean mPaused;
-        private Runnable mOnLoaded;
+        private final Object mLock = new Object();
+        private boolean mRealTime;
+
+        public LogReadTask(boolean realTime) {
+            mRealTime = realTime;
+        }
 
         @Override
         protected void onPreExecute() {
-            mPaused = false;
         }
 
         @Override
         protected Void doInBackground(LogReadParam... params) {
-            LogHandler handler = new LogHandler() {
-                @Override
-                public void newLog(String pkg, LogStructure structure) {
-                    synchronized (mLock) {
-                        if (mPaused)
-                            try {
-                                mLock.wait();
-                            } catch (InterruptedException e) {
-                                e.printStackTrace();
-                            }
-                    }
-                    publishProgress(structure);
-                }
-
-                @Override
-                public void doneLoading() {
-
-                }
-            };
-            for (LogReadParam param:params) {
-                LogReader.readLogs(getActivity(), param, handler);
+            List<LogReadParam> args = Arrays.asList(params);
+            if (args.size() == 0) {
+                mReader = new LogReader(getActivity(), mHandler);
+            } else {
+                mReader = new LogReader(getActivity(), args, mHandler);
             }
+            mReader.start();
             return null;
         }
 
-        @Override
-        protected void onProgressUpdate(LogStructure... values) {
+        private LogHandler mHandler = new LogHandler() {
+            @Override
+            public void newLog(String pkg, LogStructure structure) {
+                synchronized (mLock) {
+                    while (mPaused) {
+                        try {
+                            mLock.wait();
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+                }
+                publishProgress(structure);
+            }
 
-        }
+            @Override
+            public void doneLoading() {
 
-        @Override
-        protected void onPostExecute(Void result) {
-            if (mPaused)
-                resume();
-            if (mOnLoaded != null)
-                mOnLoaded.run();
-        }
+            }
+        };
 
         public void pause() {
             synchronized (mLock) {
                 mPaused = true;
             }
-
         }
 
         public void resume() {
-            synchronized (mLock) {
-                mPaused = false;
-                mLock.notify();
+            if (mPaused) {
+                synchronized (mLock) {
+                    mPaused = false;
+                }
             }
         }
 
-        public void setOnLoadedRunnable(Runnable loaded) {
-            mOnLoaded = loaded;
+        @Override
+        protected void onProgressUpdate(LogStructure... values) {
+            for (LogStructure value:values) {
+                mAdapter.addNewLog(value);
+                if (mRealTime)
+                    mAdapter.notifyDataSetChanged();
+            }
+        }
+
+        @Override
+        protected void onPostExecute(Void result) {
+            if (!mRealTime)
+                loadFinished();
         }
     }
 }

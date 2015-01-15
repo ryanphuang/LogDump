@@ -23,52 +23,126 @@ public class LogReader {
     private static final String TAG = "LogReader";
     private static final boolean DEBUG = true;
 
-    public static void readLogs(Context context, LogReadParam readParam, LogHandler handler) {
-        CommandExecutor.simpleExecute(new String[]{LOGCAT_COMMAND}, false,
-                new LogOutputListener(context, readParam, handler));
+    private Context mContext;
+    private List<LogReadParam> mParams;
+    private LogHandler mHandler;
+    private Map<String, String> mPkgPidMap;
+    private Process mProcess;
+
+    private boolean mFiltered;
+
+    private boolean mFinished;
+    private volatile boolean mPaused;
+
+    private final Object mLock = new Object();
+
+    public LogReader(Context context, LogHandler handler) {
+        this(context, null, handler);
+        mFiltered = false;
     }
 
-    private static class LogOutputListener implements CommandExecutor.OnCommandOutputListener {
-        private LogReadParam mReadParam;
-        private LogHandler mHandler;
-        private List<String> mLogs;
-        private Map<String, String> mPkgPidMap;
+    public LogReader(Context context, List<LogReadParam> readParams, LogHandler handler) {
+        mContext = context;
+        mParams = readParams;
+        mHandler = handler;
+        mPkgPidMap = new HashMap<>();
+        mProcess = null;
+        mPaused = false;
+        mFinished = false;
+        mFiltered = true;
+    }
 
-        public LogOutputListener(Context context, LogReadParam readParam, LogHandler handler) {
-            mReadParam = readParam;
-            mHandler = handler;
-            mLogs = new ArrayList<>();
-            mPkgPidMap = new HashMap<>();
-            if (mReadParam.pkgFilters != null) {
-                for (String pkg:mReadParam.pkgFilters) {
-                    int pid = PackageHelper.getInstance(context).getPID(pkg);
-                    if (pid >= 0) {
-                        mPkgPidMap.put(pkg, String.valueOf(pid));
-                        Log.d(TAG, pkg + " has pid filter " + pid);
-                    }
+    public void start() {
+        updatePIDs();
+        CommandExecutor.simpleExecute(new String[]{LOGCAT_COMMAND}, false,
+                new LogExecutionListener());
+    }
+
+    public void stop() {
+        if (mFinished)
+            return;
+        if (mProcess != null)
+            mProcess.destroy();
+        mFinished = true;
+    }
+
+    public void pause() {
+        synchronized (mLock) {
+            mPaused = true;
+        }
+    }
+
+    public void resume() {
+        if (mPaused) {
+            synchronized (mLock) {
+                mPaused = false;
+                mLock.notify();
+            }
+        }
+    }
+
+    private void updatePIDs() {
+        if (mParams == null)
+            return;
+        for (LogReadParam param:mParams) {
+            if (!TextUtils.isEmpty(param.pkgFilter)) {
+                int pid = PackageHelper.getInstance(mContext).getPID(param.pkgFilter);
+                if (pid >= 0) {
+                    mPkgPidMap.put(param.pkgFilter, String.valueOf(pid));
+                    Log.d(TAG, param.pkgFilter + " has pid filter " + pid);
                 }
             }
         }
+    }
+
+    private class LogExecutionListener implements CommandExecutor.OnCommandExecutionListener {
+        private List<String> mLogs;
+
+        public LogExecutionListener() {
+            mLogs = new ArrayList<>();
+        }
 
         @Override
-        public void onCommandOutput(String output) {
+        public void onProcessCreated(Process process) {
+            mProcess = process;
+        }
+
+        @Override
+        public void onOutputLine(String output) {
+            synchronized (mLock) {
+                while (mPaused) {
+                    try {
+                        mLock.wait();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace(); // Oops
+                        return;
+                    }
+                }
+            }
             LogStructure structure = LogParser.parse(output);
             if (structure == null) {
                 // Ill-formated log, no need to do filter
                 mLogs.add("Bad: " + output);
                 return;
             }
-            for (Map.Entry<String, String> pidEntry:mPkgPidMap.entrySet()) {
-                String pkg = pidEntry.getKey();
-                String pid = pidEntry.getValue();
-                if (structure.pid.equals(pid)) {
-                    // Match one filter!
-                    if (mHandler != null)
-                        mHandler.newLog(pkg, structure);
-                    if (DEBUG)
-                        mLogs.add(output);
-                    return;
+            String owner = null;
+            if (mFiltered) {
+                for (Map.Entry<String, String> pidEntry : mPkgPidMap.entrySet()) {
+                    String pkg = pidEntry.getKey();
+                    String pid = pidEntry.getValue();
+                    if (structure.pid.equals(pid)) {
+                        owner = pkg;
+                        break;
+                    }
                 }
+            }
+
+            if (owner != null || !mFiltered) {
+                // Either we find the match owner or it's unfilterred
+                if (mHandler != null)
+                    mHandler.newLog(owner, structure);
+                if (DEBUG)
+                    mLogs.add(output);
             }
         }
 

@@ -2,12 +2,9 @@ package edu.ucsd.ryan.logdump.util;
 
 import android.util.Log;
 
-import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,8 +20,9 @@ public class CommandExecutor {
 
     private static final String TAG = "CommandExecutor";
 
-    public static interface OnCommandOutputListener {
-        void onCommandOutput(String output);
+    public static interface OnCommandExecutionListener {
+        void onProcessCreated(Process process);
+        void onOutputLine(String output);
         void onOutputDone();
     }
 
@@ -36,7 +34,7 @@ public class CommandExecutor {
         }
     }
 
-    public static boolean execute(String[] commands, boolean superUser, final OnCommandOutputListener listener) {
+    public static boolean execute(String[] commands, boolean superUser, final OnCommandExecutionListener listener) {
         Shell.Builder builder = new Shell.Builder();
         if (superUser)
             builder.useSU();
@@ -48,13 +46,13 @@ public class CommandExecutor {
                 @Override
                 public void onLine(String s) {
                     if (listener != null)
-                        listener.onCommandOutput(s);
+                        listener.onOutputLine(s);
                 }
             }).open();
         return true;
     }
 
-    public static boolean simpleExecute(String[] commands, boolean superUser, final OnCommandOutputListener listener) {
+    public static boolean simpleExecute(String[] commands, boolean superUser, final OnCommandExecutionListener listener) {
         String shell;
         if (superUser)
             shell = "su";
@@ -62,15 +60,18 @@ public class CommandExecutor {
             shell = "sh";
         final List<String> errs = Collections.synchronizedList(new ArrayList<String>());
         boolean OK = true;
+        Process process = null;
         try {
-            Process process = Runtime.getRuntime().exec(shell);
+            process = Runtime.getRuntime().exec(shell);
+            if (listener != null)
+                listener.onProcessCreated(process);
             DataOutputStream STDIN = new DataOutputStream(process.getOutputStream());
             StreamGobbler STDOUT = new StreamGobbler(shell + "-",
                     process.getInputStream(), new StreamGobbler.OnLineListener() {
                 @Override
                 public void onLine(String s) {
                     if (listener != null)
-                        listener.onCommandOutput(s);
+                        listener.onOutputLine(s);
                 }
             });
             StreamGobbler STDERR = new StreamGobbler(shell + "*",
@@ -100,13 +101,15 @@ public class CommandExecutor {
             }
             STDOUT.join();
             STDERR.join();
-            process.destroy();
         } catch (IOException e) {
             OK = false;
             Log.e(TAG, "Fail to execute command:" + e.toString());
         } catch (InterruptedException e) {
             OK = false;
             e.printStackTrace();
+        } finally {
+            if (process != null)
+                process.destroy();
         }
         if (errs.size() > 0)
             OK = false;

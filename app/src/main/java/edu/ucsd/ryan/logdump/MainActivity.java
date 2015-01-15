@@ -11,10 +11,12 @@ import android.support.v4.app.FragmentManager;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.ActionBarActivity;
+import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 
 import edu.ucsd.ryan.logdump.fragment.LogHistoryFragment;
+import edu.ucsd.ryan.logdump.fragment.LogRealtimeFragment;
 import edu.ucsd.ryan.logdump.service.LogCollectionService;
 import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
 import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
@@ -56,6 +58,7 @@ public class MainActivity extends ActionBarActivity
                 R.id.navigation_drawer,
                 (DrawerLayout) findViewById(R.id.drawer_layout));
 
+        diplayDefaultFragment();
         bindService(new Intent(this, LogCollectionService.class),
                 mServiceConnection, BIND_AUTO_CREATE);
     }
@@ -66,15 +69,28 @@ public class MainActivity extends ActionBarActivity
         unbindService(mServiceConnection);
     }
 
+    private void diplayDefaultFragment() {
+        mTitle = getTitle();
+        LogRealtimeFragment defaultFragment = LogRealtimeFragment.newInstance(null);
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        fragmentManager.beginTransaction()
+                .replace(R.id.container, defaultFragment)
+                .commit();
+    }
+
     @Override
     public void onFilterDrawerItemSelected(String filter) {
         // update the main content by replacing fragments
-        mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
-        LogHistoryFragment fragment = LogHistoryFragment.newInstance(filter);
-        FragmentManager fragmentManager = getSupportFragmentManager();
-        fragmentManager.beginTransaction()
-                .replace(R.id.container, fragment)
-                .commit();
+        if (TextUtils.isEmpty(filter)) {
+            diplayDefaultFragment();
+        } else {
+            mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
+            LogHistoryFragment fragment = LogHistoryFragment.newInstance(filter);
+            FragmentManager fragmentManager = getSupportFragmentManager();
+            fragmentManager.beginTransaction()
+                    .replace(R.id.container, fragment)
+                    .commit();
+        }
     }
 
     public void restoreActionBar() {
