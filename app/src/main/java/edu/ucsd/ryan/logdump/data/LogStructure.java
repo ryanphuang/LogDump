@@ -6,7 +6,7 @@ import android.database.Cursor;
  * Created by ryan on 1/13/15.
  */
 public class LogStructure {
-    public String time;
+    public long time;
     public String level;
     public String tag;
     public String pid;
@@ -16,7 +16,7 @@ public class LogStructure {
 
     }
 
-    public LogStructure(String time, String level, String tag, String pid, String text) {
+    public LogStructure(long time, String level, String tag, String pid, String text) {
         this.time = time;
         this.level = level;
         this.tag = tag;
@@ -29,7 +29,7 @@ public class LogStructure {
         boolean valid = false;
         int index = cursor.getColumnIndex(LogSchema.COLUMN_TIME);
         if (index >= 0) {
-            structure.time = cursor.getString(index);
+            structure.time = cursor.getLong(index);
             valid = true;
         }
         index = cursor.getColumnIndex(LogSchema.COLUMN_LEVEL);

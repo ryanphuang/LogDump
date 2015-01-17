@@ -3,21 +3,29 @@ package edu.ucsd.ryan.logdump.fragment;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.CursorLoader;
 import android.support.v4.content.Loader;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.CursorAdapter;
+import android.widget.TextView;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.adapter.LogCursorAdapter;
 import edu.ucsd.ryan.logdump.data.LogContentProvider;
 import edu.ucsd.ryan.logdump.data.LogSchema;
+import edu.ucsd.ryan.logdump.data.LogStructure;
 import edu.ucsd.ryan.logdump.util.LogDBHelper;
 
 /**
@@ -32,6 +40,7 @@ import edu.ucsd.ryan.logdump.util.LogDBHelper;
 public class LogHistoryFragment extends LogBaseFragment implements LoaderManager.LoaderCallbacks<Cursor> {
 
     public static final String TAG = "LogHistoryFragment";
+    public static final String SHOW_EXTRA_KEY = "show_extra_log_info";
 
     /**
      * The Adapter which will be used to populate the ListView/GridView with
@@ -64,10 +73,28 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
     }
 
     @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+        super.onCreateOptionsMenu(menu, inflater);
+        MenuItem refreshItem = menu.findItem(R.id.action_refresh);
+        if (refreshItem != null) {
+            refreshItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+                @Override
+                public boolean onMenuItemClick(MenuItem item) {
+                    Toast.makeText(getActivity(), "Refreshing...", Toast.LENGTH_LONG).show();
+                    reloadLogs();
+                    return true;
+                }
+            });
+        }
+    }
+
+    @Override
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         setEmptyText("No logs yet");
-        mAdapter = new LogCursorAdapter(getActivity(), null, 0);
+        boolean showExtra = PreferenceManager.getDefaultSharedPreferences(
+                getActivity()).getBoolean(SHOW_EXTRA_KEY, false);
+        mAdapter = new LogCursorAdapter(getActivity(), null, 0, showExtra);
         mListView.setAdapter(mAdapter);
         setListShown(false);
         getLoaderManager().initLoader(0, null, LogHistoryFragment.this);
@@ -155,7 +182,18 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
             // fragment is attached to one) that an item has been selected.
             Cursor cursor = mAdapter.getCursor();
             if (cursor.moveToPosition(position)) {
-                mListener.onLogEntrySelected(cursor);
+                LogStructure value = LogStructure.fromCursor(cursor);
+                if (value != null) {
+                    mListener.onLogEntrySelected(value);
+                    TextView extraTV = (TextView) view.findViewById(R.id.extraText);
+                    if (extraTV != null) {
+                        if (extraTV.getVisibility() == View.GONE) {
+                            extraTV.setVisibility(View.VISIBLE);
+                        } else {
+                            extraTV.setVisibility(View.GONE);
+                        }
+                    }
+                }
             }
         }
     }

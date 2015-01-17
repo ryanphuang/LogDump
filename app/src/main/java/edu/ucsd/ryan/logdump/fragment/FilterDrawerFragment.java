@@ -1,11 +1,13 @@
 package edu.ucsd.ryan.logdump.fragment;
 
 import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.AsyncTask;
 import android.support.v7.app.ActionBarActivity;
 import android.app.Activity;
 import android.support.v7.app.ActionBar;
@@ -34,7 +36,9 @@ import android.widget.Toast;
 
 import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.data.FilterSchema;
+import edu.ucsd.ryan.logdump.data.LogSchema;
 import edu.ucsd.ryan.logdump.util.FilterDBHelper;
+import edu.ucsd.ryan.logdump.util.LogDBHelper;
 
 /**
  * Fragment used for managing interactions for and presentation of a navigation drawer.
@@ -323,6 +327,50 @@ public class FilterDrawerFragment extends Fragment {
         void onFilterDrawerItemSelected(String filter);
     }
 
+    public class DeleteFilterTask extends AsyncTask<String, Void, Integer> {
+        ProgressDialog mProgressDlg;
+
+        @Override
+        protected void onPreExecute() {
+            mProgressDlg = new ProgressDialog(getActivity());
+            mProgressDlg.setIndeterminate(true);
+            mProgressDlg.setTitle("Deleting filter and its logs...");
+            mProgressDlg.show();
+        }
+
+        @Override
+        protected Integer doInBackground(String... params) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < params.length; ++i) {
+                sb.append("?");
+                if (i != params.length - 1)
+                    sb.append(",");
+            }
+            String select = sb.toString();
+            if (select.length() > 0) {
+                select = FilterSchema.COLUMN_PKGNAME + " IN (" + select + ")";
+                ContentValues values = new ContentValues();
+                values.put(FilterSchema.COLUMN_CHECKED, 0);
+                int rowsUpdated = mDB.update(FilterSchema.TABLE_NAME, values, select, params);
+                LogDBHelper helper = new LogDBHelper(getActivity());
+                SQLiteDatabase logDB = helper.getWritableDatabase();
+                logDB.delete(LogSchema.TABLE_NAME, select, params);
+                logDB.close();
+                return rowsUpdated;
+            }
+            return 0;
+        }
+
+        @Override
+        protected void onPostExecute(Integer result) {
+            mProgressDlg.dismiss();
+            refreshDrawerList();
+            selectItem(0);
+            Toast.makeText(getActivity(), "Filter deleted",
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
     public class FilterCursorAdapter extends CursorAdapter {
         private LayoutInflater mInflater;
 
@@ -354,16 +402,7 @@ public class FilterDrawerFragment extends Fragment {
                                 .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
                                     @Override
                                     public void onClick(DialogInterface dialog, int which) {
-                                        ContentValues values = new ContentValues();
-                                        values.put(FilterSchema.COLUMN_CHECKED, 0);
-                                        int rowsAffected = mDB.update(FilterSchema.TABLE_NAME,
-                                                values, FilterSchema.COLUMN_PKGNAME + "=?",
-                                                new String[]{filter});
-                                        if (rowsAffected > 0)
-                                            Toast.makeText(getActivity(), filter + " deleted",
-                                                    Toast.LENGTH_SHORT).show();
-                                        refreshDrawerList();
-                                        selectItem(0);
+                                        new DeleteFilterTask().execute(filter);
                                     }
                                 })
                                 .setNegativeButton("No", null)

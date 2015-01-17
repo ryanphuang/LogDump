@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="edu.ucsd.ryan.logdump" >
+
     <uses-permission android:name="android.permission.READ_LOGS" />
     <uses-permission android:name="android.permission.ACCESS_SUPERUSER" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/ic_launcher"
@@ -24,9 +26,15 @@
             android:enabled="true"
             android:exported="true" >
         </service>
+
         <provider
-            android:authorities="edu.ucsd.ryan.logdump.logprovider"
-            android:name=".data.LogContentProvider" />
+            android:name=".data.LogContentProvider"
+            android:authorities="edu.ucsd.ryan.logdump.logprovider" />
+
+        <activity
+            android:name=".SettingsActivity"
+            android:label="@string/title_activity_settings" >
+        </activity>
     </application>
 
 </manifest>

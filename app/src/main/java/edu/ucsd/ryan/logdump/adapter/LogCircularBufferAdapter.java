@@ -1,6 +1,7 @@
 package edu.ucsd.ryan.logdump.adapter;
 
 import android.content.Context;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,14 +17,18 @@ import edu.ucsd.ryan.logdump.util.CircularBuffer;
  * Created by ryan on 1/13/15.
  */
 public class LogCircularBufferAdapter extends BaseAdapter implements Filterable {
+    private static final String TAG = "LogCircularBufferAdapter";
     private CircularBuffer mBuffer;
     private LayoutInflater mInflater;
     private boolean mReverse;
+    private boolean mShowExtra;
 
-    public LogCircularBufferAdapter(Context context, CircularBuffer buffer, boolean reverse) {
+    public LogCircularBufferAdapter(Context context, CircularBuffer buffer,
+                                    boolean showExtra, boolean reverse) {
         mBuffer = buffer;
         mInflater = LayoutInflater.from(context);
         mReverse = reverse;
+        mShowExtra = showExtra;
     }
 
     @Override
@@ -60,7 +65,7 @@ public class LogCircularBufferAdapter extends BaseAdapter implements Filterable 
         }
         LogStructure structure = (LogStructure) getItem(position);
         if (structure != null) {
-            viewHolder.setViews(structure);
+            viewHolder.setViews(mShowExtra, structure);
         }
         return v;
     }

@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.text.TextUtils;
@@ -18,8 +19,8 @@ import android.view.animation.AnimationUtils;
 import android.widget.AbsListView;
 import android.widget.SearchView;
 import android.widget.TextView;
-import android.widget.Toast;
 
+import edu.ucsd.ryan.logdump.MainActivity;
 import edu.ucsd.ryan.logdump.R;
 import edu.ucsd.ryan.logdump.util.LogLevel;
 
@@ -62,6 +63,7 @@ public abstract class LogBaseFragment extends Fragment implements AbsListView.On
     protected boolean mListShown;
     protected View mProgressContainer;
     protected View mListContainer;
+    protected boolean mShowExtra;
 
     /**
      * Mandatory empty constructor for the fragment manager to instantiate the
@@ -170,64 +172,65 @@ public abstract class LogBaseFragment extends Fragment implements AbsListView.On
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         // Place an action bar item for searching.
-        MenuItem refreshItem = menu.findItem(R.id.action_refresh);
-        if (refreshItem != null) {
-            refreshItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
-                @Override
-                public boolean onMenuItemClick(MenuItem item) {
-                    Toast.makeText(getActivity(), "Refreshing...", Toast.LENGTH_LONG).show();
-                    reloadLogs();
-                    return true;
-                }
-            });
-        }
-
         MenuItem filterItem = menu.findItem(R.id.action_filter);
         if (filterItem != null) {
             filterItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
                 @Override
                 public boolean onMenuItemClick(MenuItem item) {
-                    final int[] selected = new int[1];
-                    AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-                    builder.setTitle("Log level filter")
-                            .setCancelable(true)
-                            .setSingleChoiceItems(getResources().getStringArray(R.array.log_levels), 0,
-                                    new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            selected[0] = which;
-                                        }
-                                    }
-                            )
-                            .setPositiveButton("OK", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    mLevelFilter = LogLevel.values()[selected[0] + 1];
-                                    Log.d(getTAG(), "Filter by " + mLevelFilter);
-                                    reloadLogs();
-                                }
-                            })
-                            .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-
-                                }
-                            });
-                    builder.show();
-                    return false;
+                    showFilter();
+                    return true;
                 }
             });
         }
 
-        MenuItem item = menu.add("Search");
-        item.setIcon(android.R.drawable.ic_menu_search);
-        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM
-                | MenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW);
-        mSearchView = new LogSearchView(getActivity());
-        mSearchView.setOnQueryTextListener(this);
-        mSearchView.setOnCloseListener(this);
-        mSearchView.setIconifiedByDefault(true);
-        item.setActionView(mSearchView);
+        MenuItem searchItem = menu.findItem(R.id.action_search);
+        if (searchItem != null) {
+            mSearchView = new LogSearchView(getActivity());
+            mSearchView.setOnQueryTextListener(this);
+            mSearchView.setOnCloseListener(this);
+            mSearchView.setIconifiedByDefault(true);
+            searchItem.setActionView(mSearchView);
+        }
+
+        MenuItem homeItem = menu.findItem(R.id.action_home);
+        if (homeItem != null) {
+            homeItem.setOnMenuItemClickListener(new MenuItem.OnMenuItemClickListener() {
+                @Override
+                public boolean onMenuItemClick(MenuItem item) {
+                    startActivity(new Intent(getActivity(), MainActivity.class));
+                    return true;
+                }
+            });
+        }
+    }
+
+    public void showFilter() {
+        final int[] selected = new int[1];
+        AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+        builder.setTitle("Log level filter")
+                .setCancelable(true)
+                .setSingleChoiceItems(getResources().getStringArray(R.array.log_levels), 0,
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                selected[0] = which;
+                            }
+                        }
+                )
+                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        mLevelFilter = LogLevel.values()[selected[0] + 1];
+                        Log.d(getTAG(), "Filter by " + mLevelFilter);
+                        reloadLogs();
+                    }
+                })
+                .setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                });
+        builder.show();
     }
 
 

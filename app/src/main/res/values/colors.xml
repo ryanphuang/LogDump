@@ -4,5 +4,6 @@
     <color name="menu_item_default_color">#cccc</color>
     <color name="log_list_bg">#393939</color>
     <color name="log_text_color">#c7c7c7</color>
+    <color name="log_extra_color">#ffc7bf61</color>
     <color name="filter_text_color">#000000</color>
 </resources>

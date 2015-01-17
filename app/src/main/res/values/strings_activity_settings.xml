@@ -1,0 +1,32 @@
+<resources>
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Strings related to Settings -->
+
+    <!-- Example General settings -->
+    <string name="pref_header_general">General</string>
+
+    <string name="pref_title_show_extra">Extra log info</string>
+    <string name="pref_description_show_extra">Show extra information for each log
+    </string>
+
+    <string name="pref_header_data">Data</string>
+
+    <string name="pref_title_log_archive">Log archive cleanup</string>
+    <string-array name="pref_log_archive_threshold_titles">
+        <item>30 minutes</item>
+        <item>1 hour</item>
+        <item>6 hours</item>
+        <item>24 hours</item>
+        <item>3 days</item>
+        <item>Never</item>
+    </string-array>
+    <string-array name="pref_log_archive_threshold_values">
+        <item>30</item>
+        <item>60</item>
+        <item>360</item>
+        <item>1440</item>
+        <item>4320</item>
+        <item>-1</item>
+    </string-array>
+</resources>

@@ -15,9 +15,12 @@ import edu.ucsd.ryan.logdump.data.LogStructure;
  */
 public class LogCursorAdapter extends CursorAdapter {
     private LayoutInflater mInflater;
-    public LogCursorAdapter(Context context, Cursor c, int flags) {
+    private boolean mShowExtra;
+
+    public LogCursorAdapter(Context context, Cursor c, int flags, boolean showExtra) {
         super(context, c, flags);
         mInflater = LayoutInflater.from(context);
+        mShowExtra = showExtra;
     }
 
     @Override
@@ -30,7 +33,7 @@ public class LogCursorAdapter extends CursorAdapter {
         LogStructure structure = LogStructure.fromCursor(cursor);
         if (structure != null) {
             LogItemViewHolder holder = new LogItemViewHolder(view);
-            holder.setViews(structure);
+            holder.setViews(mShowExtra, structure);
         }
 
     }

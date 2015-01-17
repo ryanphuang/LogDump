@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <ListPreference
+        android:key="log_archive_threshold"
+        android:title="@string/pref_title_log_archive"
+        android:defaultValue="60"
+        android:entries="@array/pref_log_archive_threshold_titles"
+        android:entryValues="@array/pref_log_archive_threshold_values"
+        android:negativeButtonText="@null"
+        android:positiveButtonText="@null" />
+</PreferenceScreen>

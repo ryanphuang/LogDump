@@ -21,7 +21,7 @@ import edu.ucsd.ryan.logdump.data.LogReadParam;
 public class LogReader {
     private static final String LOGCAT_COMMAND = "logcat -d -v time -b main";
     private static final String TAG = "LogReader";
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     private Context mContext;
     private List<LogReadParam> mParams;
@@ -53,6 +53,8 @@ public class LogReader {
     }
 
     public void start() {
+        if (mFiltered && mParams.size() == 0) // no need to collect for empty filter
+            return;
         updatePIDs();
         CommandExecutor.simpleExecute(new String[]{LOGCAT_COMMAND}, false,
                 new LogExecutionListener());
@@ -97,9 +99,11 @@ public class LogReader {
 
     private class LogExecutionListener implements CommandExecutor.OnCommandExecutionListener {
         private List<String> mLogs;
+        private int nLogs;
 
         public LogExecutionListener() {
             mLogs = new ArrayList<>();
+            nLogs = 0;
         }
 
         @Override
@@ -139,6 +143,7 @@ public class LogReader {
 
             if (owner != null || !mFiltered) {
                 // Either we find the match owner or it's unfilterred
+                nLogs++;
                 if (mHandler != null)
                     mHandler.newLog(owner, structure);
                 if (DEBUG)
@@ -150,9 +155,12 @@ public class LogReader {
         public void onOutputDone() {
             if (mHandler != null)
                 mHandler.doneLoading();
+            if (nLogs > 0)
+                Log.i(TAG, "Collected " + mLogs.size() + " logs");
+            else
+                Log.e(TAG, "No logs");
             if (DEBUG) {
                 if (mLogs.size() > 0) {
-                    Log.i(TAG, "Collected " + mLogs.size() + " logs");
                     File f = new File("/sdcard/logs.txt");
                     try {
                         FileWriter fileWriter = new FileWriter(f);
@@ -163,8 +171,6 @@ public class LogReader {
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
-                } else {
-                    Log.e(TAG, "No logs");
                 }
             }
         }

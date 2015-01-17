@@ -24,7 +24,7 @@ public class LogDBHelper extends SQLiteOpenHelper {
             LogSchema.COLUMN_APP + " TEXT," +
             LogSchema.COLUMN_LEVEL + " TEXT," +
             LogSchema.COLUMN_TAG + " TEXT," +
-            LogSchema.COLUMN_TIME + " TEXT," +
+            LogSchema.COLUMN_TIME + " INTEGER," +
             LogSchema.COLUMN_TEXT + " TEXT" +
             ");";
 

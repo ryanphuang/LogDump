@@ -1,6 +1,5 @@
 package edu.ucsd.ryan.logdump.service;
 
-import android.Manifest;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -9,11 +8,12 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Binder;
-import android.os.Build;
 import android.os.IBinder;
+import android.preference.PreferenceManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -30,57 +30,47 @@ import edu.ucsd.ryan.logdump.util.FilterDBHelper;
 import edu.ucsd.ryan.logdump.util.LogHandler;
 import edu.ucsd.ryan.logdump.util.LogReader;
 import edu.ucsd.ryan.logdump.util.PackageHelper;
-import eu.chainfire.libsuperuser.Shell;
 
 public class LogCollectionService extends Service {
     public static final String TAG = "LogCollectionService";
 
     private static final String ACTION_COLLECT_LOG = "COLLECT_LOG";
+    private static final String ACTION_CLEANUP_LOG = "CLEANUP_LOG";
 
-    private static final int LOG_COLLECTION_FREQUENCY = 60 * 1000; // 1 minute
+    private static final int MILLIS_PER_SECOND = 1000;
+    private static final int SECONDS_PER_MINUTE = 60;
+    private static final int MINUTES_PER_HOUR = 60;
+
+    private static final int LOG_COLLECTION_DELAY = 15 * MILLIS_PER_SECOND; // 5 seconds;
+    private static final int LOG_CLEANUP_DELAY = 30 * MILLIS_PER_SECOND; // 20 seconds;
+
+    private static final int LOG_COLLECTION_FREQUENCY = SECONDS_PER_MINUTE * MILLIS_PER_SECOND; // 1 minute
+
+    private int mCleanUpThreshold = MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLIS_PER_SECOND; // 1 hour
+    private static final String ARCHIVE_CLEANUP_KEY = "log_archive_threshold";
 
     private Set<String> mFilters;
 
 
     @Override
     public void onCreate() {
-        checkReadLogPermission();
+        PreferenceManager.getDefaultSharedPreferences(this).
+                registerOnSharedPreferenceChangeListener(spChangeListener);
+        int result = PackageHelper.checkReadLogPermission(this, getPackageName());
+        if (result == PackageHelper.READLOG_PERMISSION_GRANTED) {
+            Toast.makeText(this, "Read logs permission granted!",
+                    Toast.LENGTH_SHORT).show();
+        }
         mFilters = new HashSet<>();
         updateFilters();
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_COLLECT_LOG);
-        registerReceiver(mCollectLogReceiver, filter);
+        filter.addAction(ACTION_CLEANUP_LOG);
+        registerReceiver(mLogTaskReceiver, filter);
         scheduleCollectionTask();
+        scheduleCleanupTask();
     }
 
-    public void checkReadLogPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-            String pkgName = getPackageName();
-            if (getPackageManager().checkPermission(Manifest.permission.READ_LOGS, pkgName) != 0) {
-                if (!Shell.SU.available()) {
-                    Log.e(TAG, "Don't have root permission to read logs");
-                } else {
-                    String grantCommand = "pm grant "+ pkgName + " "+ android.Manifest.permission.READ_LOGS;
-                    boolean ok = false;
-                    if (Shell.SU.run(new String[]{grantCommand}) != null) {
-                        if (getPackageManager().checkPermission(Manifest.permission.READ_LOGS, pkgName) != 0) {
-                            Toast.makeText(LogCollectionService.this, "Read logs permission granted!",
-                                    Toast.LENGTH_SHORT).show();
-                            ok = true;
-                        }
-                    }
-                    if (ok)
-                        Log.i(TAG, "Read logs permission granted!");
-                    else
-                        Log.e(TAG, "Fail to grant read logs permission");
-                }
-            } else {
-                Log.d(TAG, "We have read logs permission");
-            }
-        } else {
-            Log.d(TAG, "Never mind, we are safe to read global logs");
-        }
-    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -91,28 +81,63 @@ public class LogCollectionService extends Service {
     public void onDestroy() {
         super.onDestroy();
         descheduleCollectionTask();
-        unregisterReceiver(mCollectLogReceiver);
+        descheduleCleanupTask();
+        unregisterReceiver(mLogTaskReceiver);
+    }
+
+    private int getCleanupMillisPref(SharedPreferences prefs) {
+        try {
+            int freq = Integer.valueOf(prefs.getString("log_archive_threshold", "60"));
+            return freq * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLIS_PER_SECOND; // clean up every hour
+        } catch (NumberFormatException exception) {
+            Log.e(TAG, "Invalid threshold");
+        }
+        return -1;
+    }
+
+    private void scheduleCleanupTask() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(
+                LogCollectionService.this);
+        int freq = getCleanupMillisPref(prefs);
+        if (freq > 0) {
+            mCleanUpThreshold = freq;
+            Intent intent = new Intent(ACTION_CLEANUP_LOG);
+            PendingIntent pendingIntent = PendingIntent.getBroadcast(LogCollectionService.this, 0, intent, 0);
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            alarmManager.setRepeating(AlarmManager.RTC_WAKEUP,
+                    System.currentTimeMillis() + LOG_CLEANUP_DELAY,
+                    mCleanUpThreshold, pendingIntent);
+            Log.d(TAG, "Log cleanup task scheduled");
+        }
+    }
+
+    private void descheduleCleanupTask() {
+        Intent intent = new Intent(ACTION_CLEANUP_LOG);
+        PendingIntent pendingIntent = PendingIntent.getBroadcast(LogCollectionService.this, 0, intent, 0);
+        AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+        alarmManager.cancel(pendingIntent);
+        Log.d(TAG, "Log cleanup task descheduled");
     }
 
     private void scheduleCollectionTask() {
-        Log.d(TAG, "Scheduling collection task");
         Intent intent = new Intent(ACTION_COLLECT_LOG);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(LogCollectionService.this, 0, intent, 0);
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP,
-                System.currentTimeMillis(),
+                System.currentTimeMillis() + LOG_COLLECTION_DELAY,
                 LOG_COLLECTION_FREQUENCY, pendingIntent);
+        Log.d(TAG, "Log collection task scheduled");
     }
 
     private void descheduleCollectionTask() {
-        Log.d(TAG, "Descheduling collection task");
         Intent intent = new Intent(ACTION_COLLECT_LOG);
         PendingIntent pendingIntent = PendingIntent.getBroadcast(LogCollectionService.this, 0, intent, 0);
         AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
         alarmManager.cancel(pendingIntent);
+        Log.d(TAG, "Log collection task descheduled");
     }
 
-    private BroadcastReceiver mCollectLogReceiver = new BroadcastReceiver() {
+    private BroadcastReceiver mLogTaskReceiver = new BroadcastReceiver() {
 
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -123,6 +148,14 @@ public class LogCollectionService extends Service {
                     @Override
                     public void run() {
                         collectLogs();
+                    }
+                }.start();
+            } else if (action.equals(ACTION_CLEANUP_LOG)) {
+                Log.d(TAG, "Cleanup task request received");
+                new Thread() {
+                    @Override
+                    public void run() {
+                        cleanupLogs();
                     }
                 }.start();
             } else {
@@ -182,6 +215,13 @@ public class LogCollectionService extends Service {
         new Thread(mUpdateFilterRunnable).start();
     }
 
+    public void cleanupLogs() {
+        long cutoff = System.currentTimeMillis() - mCleanUpThreshold;
+        int deleted = getContentResolver().delete(LogSchema.CONTENT_URI,
+                LogSchema.COLUMN_TIME + "<?", new String[]{String.valueOf(cutoff)});
+        Log.d(TAG, deleted + " rows deleted");
+    }
+
     public void collectLogs() {
         Log.d(TAG, "Collect logs for " + mFilters);
         List<LogReadParam> params = new ArrayList<>();
@@ -214,4 +254,17 @@ public class LogCollectionService extends Service {
     public IBinder onBind(Intent intent) {
         return mBinder;
     }
+
+    SharedPreferences.OnSharedPreferenceChangeListener spChangeListener = new
+            SharedPreferences.OnSharedPreferenceChangeListener() {
+        @Override
+        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+            if (key.equals(ARCHIVE_CLEANUP_KEY)) {
+                mCleanUpThreshold = getCleanupMillisPref(sharedPreferences);
+                Log.d(TAG, "Clean up frequency changed");
+                descheduleCleanupTask();
+                scheduleCleanupTask();
+            }
+         }
+    };
 }

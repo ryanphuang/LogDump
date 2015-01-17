@@ -4,9 +4,10 @@ import android.app.DialogFragment;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.database.Cursor;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.preference.PreferenceActivity;
+import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
@@ -15,11 +16,11 @@ import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
+import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
 import edu.ucsd.ryan.logdump.fragment.LogHistoryFragment;
 import edu.ucsd.ryan.logdump.fragment.LogRealtimeFragment;
 import edu.ucsd.ryan.logdump.service.LogCollectionService;
-import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
-import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
 import edu.ucsd.ryan.logdump.util.FilterDBRunnable;
 import edu.ucsd.ryan.logdump.util.PackageHelper;
 
@@ -41,6 +42,8 @@ public class MainActivity extends ActionBarActivity
 
     private boolean mBound;
     private LogCollectionService mService;
+
+    private Fragment mMainFragment;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,10 +74,10 @@ public class MainActivity extends ActionBarActivity
 
     private void diplayDefaultFragment() {
         mTitle = getTitle();
-        LogRealtimeFragment defaultFragment = LogRealtimeFragment.newInstance(null);
+        mMainFragment = LogRealtimeFragment.newInstance(null);
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
-                .replace(R.id.container, defaultFragment)
+                .replace(R.id.container, mMainFragment)
                 .commit();
     }
 
@@ -85,10 +88,10 @@ public class MainActivity extends ActionBarActivity
             diplayDefaultFragment();
         } else {
             mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
-            LogHistoryFragment fragment = LogHistoryFragment.newInstance(filter);
+            mMainFragment = LogHistoryFragment.newInstance(filter);
             FragmentManager fragmentManager = getSupportFragmentManager();
             fragmentManager.beginTransaction()
-                    .replace(R.id.container, fragment)
+                    .replace(R.id.container, mMainFragment)
                     .commit();
         }
     }
@@ -108,6 +111,16 @@ public class MainActivity extends ActionBarActivity
             // if the drawer is not showing. Otherwise, let the drawer
             // decide what to show in the action bar.
             getMenuInflater().inflate(R.menu.main, menu);
+            MenuItem refreshItem = menu.findItem(R.id.action_refresh);
+            MenuItem pauseItem = menu.findItem(R.id.action_pause);
+            if (mMainFragment instanceof LogRealtimeFragment) {
+                refreshItem.setVisible(false);
+                pauseItem.setVisible(true);
+            } else if (mMainFragment instanceof LogHistoryFragment) {
+                // refreshItem.setVisible(true);
+                refreshItem.setVisible(false); // we can automatically refresh already
+                pauseItem.setVisible(false);
+            }
             restoreActionBar();
             return true;
         }
@@ -130,11 +143,8 @@ public class MainActivity extends ActionBarActivity
                 mFilterDrawerFragment.toggleDeleteButton();
                 break;
 
-            case R.id.action_refresh:
-
-                break;
-
             case R.id.action_settings:
+                startActivity(new Intent(MainActivity.this, SettingsActivity.class));
                 return true;
 
         }
