@@ -65,6 +65,7 @@ public class LogCollectionService extends Service {
         mPkgFilters = new HashSet<>();
         mExprFilters = new ArrayList<>();
         updatePkgFilters();
+        updateExprFilters();
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_COLLECT_LOG);
         filter.addAction(ACTION_CLEANUP_LOG);
@@ -257,7 +258,6 @@ public class LogCollectionService extends Service {
     }
 
     public void collectLogs() {
-        Log.d(TAG, "Collect logs for " + mPkgFilters);
         List<LogReadParam> params = new ArrayList<>();
         for (String pkg: mPkgFilters) {
             params.add(new LogReadParam(pkg, null, null, null));
@@ -265,6 +265,8 @@ public class LogCollectionService extends Service {
         for (FilterExpression expr:mExprFilters) {
             params.add(new LogReadParam(null, expr.tag, expr.priority, null));
         }
+
+        Log.d(TAG, "Collect logs for packages " + mPkgFilters + " and expressions " + mExprFilters);
         new Thread(new LogCollectionRunnable(params)).start();
     }
 

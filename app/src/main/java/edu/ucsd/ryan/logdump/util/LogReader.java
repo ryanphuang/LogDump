@@ -9,6 +9,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -24,9 +25,9 @@ public class LogReader {
     private static final boolean DEBUG = false;
 
     private Context mContext;
-    private List<LogReadParam> mParams;
     private LogHandler mHandler;
-    private Map<String, String> mPkgPidMap;
+    private HashMap<String, String> mPidPkgMap;
+    private HashSet<String> mTagSet;
     private Process mProcess;
 
     private String mCommand;
@@ -44,19 +45,23 @@ public class LogReader {
 
     public LogReader(Context context, List<LogReadParam> readParams, LogHandler handler) {
         mContext = context;
-        mParams = readParams;
         mHandler = handler;
-        mPkgPidMap = new HashMap<>();
+        mPidPkgMap = new HashMap<>();
+        mTagSet = new HashSet<>();
         mProcess = null;
         mPaused = false;
         mFinished = false;
         mFiltered = true;
+        mCommand = DEFAULT_LOGCAT_COMMAND;
+        prepareArgs(readParams);
     }
 
     public void start() {
-        if (mFiltered && mParams.size() == 0) // no need to collect for empty filter
+        if (mFiltered && mTagSet.isEmpty() && mPidPkgMap.isEmpty()) {
+            // no need to collect for empty filter
+            Log.d(TAG, "Empty filter, return");
             return;
-        prepareArgs();
+        }
         CommandExecutor.simpleExecute(new String[]{mCommand}, false,
                 new LogExecutionListener());
     }
@@ -84,19 +89,20 @@ public class LogReader {
         }
     }
 
-    private void prepareArgs() {
-        if (mParams == null)
+    private void prepareArgs(List<LogReadParam> params) {
+        if (params == null)
             return;
         StringBuilder sb = new StringBuilder();
-        for (LogReadParam param:mParams) {
+        for (LogReadParam param:params) {
             if (!TextUtils.isEmpty(param.pkgFilter)) {
                 int pid = PackageHelper.getInstance(mContext).getPID(param.pkgFilter);
                 if (pid >= 0) {
-                    mPkgPidMap.put(param.pkgFilter, String.valueOf(pid));
+                    mPidPkgMap.put(String.valueOf(pid), param.pkgFilter);
                     Log.d(TAG, param.pkgFilter + " has pid filter " + pid);
                 }
             } else if (!TextUtils.isEmpty(param.tagFilter) &&
                     !TextUtils.isEmpty(param.levelFilter)) {
+                mTagSet.add(param.tagFilter);
                 sb.append(param.tagFilter);
                 sb.append(":");
                 sb.append(param.levelFilter);
@@ -104,11 +110,8 @@ public class LogReader {
             }
         }
         if (sb.length() > 0) {
-            sb.append(" *:S"); // suppress other tags
+            sb.append("*:S"); // suppress other tags
             mCommand = DEFAULT_LOGCAT_COMMAND + " " + sb.toString();
-            Log.d(TAG, "Command: " + mCommand);
-        } else {
-            mCommand = DEFAULT_LOGCAT_COMMAND;
         }
     }
 
@@ -146,16 +149,11 @@ public class LogReader {
             }
             String owner = null;
             if (mFiltered) {
-                for (Map.Entry<String, String> pidEntry : mPkgPidMap.entrySet()) {
-                    String pkg = pidEntry.getKey();
-                    String pid = pidEntry.getValue();
-                    if (structure.pid.equals(pid)) {
-                        owner = pkg;
-                        break;
-                    }
+                owner = mPidPkgMap.get(structure.pid);
+                if (owner == null && mTagSet.contains(structure.tag)) {
+                    owner = structure.tag;
                 }
             }
-
             if (owner != null || !mFiltered) {
                 // Either we find the match owner or it's unfilterred
                 nLogs++;
@@ -171,9 +169,9 @@ public class LogReader {
             if (mHandler != null)
                 mHandler.doneLoading();
             if (nLogs > 0)
-                Log.i(TAG, "Collected " + mLogs.size() + " logs");
+                Log.i(TAG, "Collected " + nLogs + " logs with command " + mCommand);
             else
-                Log.e(TAG, "No logs");
+                Log.e(TAG, "No logs for command " + mCommand);
             if (DEBUG) {
                 if (mLogs.size() > 0) {
                     File f = new File("/sdcard/logs.txt");

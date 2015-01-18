@@ -27,6 +27,7 @@ import edu.ucsd.ryan.logdump.data.LogContentProvider;
 import edu.ucsd.ryan.logdump.data.LogSchema;
 import edu.ucsd.ryan.logdump.data.LogStructure;
 import edu.ucsd.ryan.logdump.util.LogDBHelper;
+import edu.ucsd.ryan.logdump.util.LogLevel;
 
 /**
  * A fragment representing a list of Items.
@@ -48,10 +49,12 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
      */
     private CursorAdapter mAdapter;
 
-    public static LogHistoryFragment newInstance(String filterPkg) {
+    public static LogHistoryFragment newInstance(String pkg, String tag, String priority) {
         LogHistoryFragment fragment = new LogHistoryFragment();
         Bundle args = new Bundle();
-        args.putString(ARG_PKG, filterPkg);
+        args.putString(ARG_PKG, pkg);
+        args.putString(ARG_TAG, tag);
+        args.putString(ARG_PRIORITY, priority);
         fragment.setArguments(args);
         return fragment;
     }
@@ -61,15 +64,6 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
      * fragment (e.g. upon screen orientation changes).
      */
     public LogHistoryFragment() {
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mFilterPkg = getArguments().getString(ARG_PKG);
-        }
-        mLevelFilter = null;
     }
 
     @Override
@@ -112,10 +106,24 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
 
     @Override
     public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-        String select = "(" + LogSchema.COLUMN_PKGNAME + "=?)";
+        String select;
         List<String> sArgs = new ArrayList<>();
-        sArgs.add(mFilterPkg);
-        String levelSelect = LogDBHelper.getLevelFilterSelect(mLevelFilter);
+        if (!TextUtils.isEmpty(mPkgFilter)) {
+            select = "(" + LogSchema.COLUMN_PKGNAME + "=?)";
+            sArgs.add(mPkgFilter);
+        } else if (!TextUtils.isEmpty(mTagFilter)) {
+            select = "(" + LogSchema.COLUMN_TAG + "=?)";
+            sArgs.add(mTagFilter);
+        } else {
+            return null;
+        }
+        String levelSelect = null;
+        if (mLevelFilter != null) {
+            levelSelect = LogDBHelper.getLevelFilterSelect(mLevelFilter);
+        } else if (mPriorityFilter != null) {
+            LogLevel pLevel = LogLevel.getLetterLevel(mPriorityFilter);
+            levelSelect = LogDBHelper.getLevelFilterSelect(pLevel);
+        }
         if (!TextUtils.isEmpty(levelSelect)) {
             select = select + " AND (" + levelSelect + ")";
             Log.d(TAG, "Level select " + levelSelect);
@@ -124,6 +132,7 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
             select = select + " AND (" + LogSchema.COLUMN_TEXT + " LIKE ? COLLATE NOCASE)";
             sArgs.add("%" + mContentFilter + "%");
         }
+        Log.d(TAG, "Log history selection: " + select);
         String[] selectArgs = sArgs.toArray(new String[sArgs.size()]);
         String limit;
         String sortOrder;

@@ -40,11 +40,11 @@ import edu.ucsd.ryan.logdump.util.LogLevel;
 public abstract class LogBaseFragment extends Fragment implements AbsListView.OnItemClickListener,
         SearchView.OnQueryTextListener, SearchView.OnCloseListener {
 
+    public static final String ARG_PKG = "pkg";
+    public static final String ARG_TAG = "tag";
+    public static final String ARG_PRIORITY = "priority";
+
     protected static final int MAX_LOGS = 512;
-
-    protected static final String ARG_PKG = "pkg";
-
-    protected String mFilterPkg;
 
     protected OnLogEntrySelectedListener mListener;
 
@@ -57,6 +57,9 @@ public abstract class LogBaseFragment extends Fragment implements AbsListView.On
 
     protected SearchView mSearchView;
 
+    protected String mPkgFilter;
+    protected String mTagFilter;
+    protected String mPriorityFilter;
     protected String mContentFilter;
     protected LogLevel mLevelFilter;
 
@@ -73,7 +76,6 @@ public abstract class LogBaseFragment extends Fragment implements AbsListView.On
 
     }
 
-
     public abstract void reloadLogs();
     public abstract String getTAG();
 
@@ -81,7 +83,9 @@ public abstract class LogBaseFragment extends Fragment implements AbsListView.On
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (getArguments() != null) {
-            mFilterPkg = getArguments().getString(ARG_PKG);
+            mPkgFilter = getArguments().getString(ARG_PKG);
+            mTagFilter = getArguments().getString(ARG_TAG);
+            mPriorityFilter = getArguments().getString(ARG_PRIORITY);
         }
         mLevelFilter = null;
     }

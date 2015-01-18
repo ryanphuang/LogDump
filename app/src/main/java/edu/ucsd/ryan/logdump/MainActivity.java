@@ -13,6 +13,7 @@ import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.ActionBarActivity;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
@@ -36,6 +37,7 @@ public class MainActivity extends ActionBarActivity
         FilterExpressionFragment.FilterExprDialogListener,
         LogHistoryFragment.OnLogEntrySelectedListener {
 
+    private static final String TAG = "MainActivity";
     /**
      * Fragment managing the behaviors, interactions and presentation of the navigation drawer.
      */
@@ -80,7 +82,7 @@ public class MainActivity extends ActionBarActivity
 
     private void diplayDefaultFragment() {
         mTitle = getTitle();
-        mMainFragment = LogRealtimeFragment.newInstance(null);
+        mMainFragment = LogRealtimeFragment.newInstance(null, null, null);
         FragmentManager fragmentManager = getSupportFragmentManager();
         fragmentManager.beginTransaction()
                 .replace(R.id.container, mMainFragment)
@@ -90,11 +92,25 @@ public class MainActivity extends ActionBarActivity
     @Override
     public void onFilterDrawerItemSelected(String filter) {
         // update the main content by replacing fragments
+        Log.d(TAG, "Filter " + filter);
         if (TextUtils.isEmpty(filter)) {
             diplayDefaultFragment();
         } else {
-            mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
-            mMainFragment = LogHistoryFragment.newInstance(filter);
+            int index = filter.indexOf(':');
+            String pkg = null;
+            String tag = null;
+            String priority = null;
+            if (index >= 0) {
+                // tag:priority filter
+                tag = filter.substring(0, index);
+                priority = filter.substring(index + 1);
+                mTitle = filter;
+            } else {
+                pkg = filter;
+                // package filter
+                mTitle = PackageHelper.getInstance(MainActivity.this).getName(filter);
+            }
+            mMainFragment = LogHistoryFragment.newInstance(pkg, tag, priority);
             FragmentManager fragmentManager = getSupportFragmentManager();
             fragmentManager.beginTransaction()
                     .replace(R.id.container, mMainFragment)

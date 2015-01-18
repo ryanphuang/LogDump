@@ -228,9 +228,9 @@ public class FilterDrawerFragment extends Fragment {
     public void refreshDrawerList() {
         Log.d(TAG, "Refresh drawer list");
         String select = "((" + FilterSchema.COLUMN_TAG + " IS NOT NULL AND " +
-                FilterSchema.COLUMN_PRIORITY + " IS NOT NULL) OR " +
-                FilterSchema.COLUMN_PKGNAME + " IS NOT NULL)) AND " +
-                FilterSchema.COLUMN_CHECKED + "=?";
+                FilterSchema.COLUMN_PRIORITY + " IS NOT NULL) OR (" +
+                FilterSchema.COLUMN_PKGNAME + " IS NOT NULL)) AND (" +
+                FilterSchema.COLUMN_CHECKED + "=?)";
 
         Cursor cursor = mDB.query(FilterSchema.TABLE_NAME, new String[]{
                         FilterSchema._ID, FilterSchema.COLUMN_PKGNAME,
@@ -245,18 +245,18 @@ public class FilterDrawerFragment extends Fragment {
 
     private void selectItem(int position) {
         mCurrentSelectedPosition = position;
-        String filterPkg = null;
+        String filter = null;
         if (mDrawerListView != null) {
             mDrawerListView.setItemChecked(position, true);
             Cursor cursor = (Cursor) mDrawerListView.getItemAtPosition(position);
             if (!cursor.isBeforeFirst() && !cursor.isAfterLast())
-                filterPkg = cursor.getString(1);
+                filter = getFilterFromCursor(cursor);
         }
         if (mDrawerLayout != null) {
             mDrawerLayout.closeDrawer(mFragmentContainerView);
         }
         if (mCallbacks != null) {
-            mCallbacks.onFilterDrawerItemSelected(filterPkg);
+            mCallbacks.onFilterDrawerItemSelected(filter);
         }
     }
 
@@ -347,25 +347,35 @@ public class FilterDrawerFragment extends Fragment {
 
         @Override
         protected Integer doInBackground(String... params) {
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < params.length; ++i) {
-                sb.append("?");
-                if (i != params.length - 1)
-                    sb.append(",");
-            }
-            String select = sb.toString();
-            if (select.length() > 0) {
-                select = FilterSchema.COLUMN_PKGNAME + " IN (" + select + ")";
+            LogDBHelper helper = new LogDBHelper(getActivity());
+            SQLiteDatabase logDB = helper.getWritableDatabase();
+            int rowsUpdated = 0;
+            for (String param:params) {
+                int idx = param.indexOf(':');
+                String select;
+                String[] selectArgs;
+                if (idx >= 0) {
+                    // tag:priority filter
+                    String tag = param.substring(0, idx);
+                    String priority = param.substring(idx + 1);
+                    select = FilterSchema.COLUMN_TAG + "=? AND " +
+                        FilterSchema.COLUMN_PRIORITY + "=?";
+                    selectArgs = new String[] {tag, priority};
+
+                } else {
+                    // package filter
+                    select = FilterSchema.COLUMN_PKGNAME + "=?";
+                    selectArgs = new String[] {param};
+
+                }
                 ContentValues values = new ContentValues();
                 values.put(FilterSchema.COLUMN_CHECKED, 0);
-                int rowsUpdated = mDB.update(FilterSchema.TABLE_NAME, values, select, params);
-                LogDBHelper helper = new LogDBHelper(getActivity());
-                SQLiteDatabase logDB = helper.getWritableDatabase();
-                logDB.delete(LogSchema.TABLE_NAME, select, params);
-                logDB.close();
-                return rowsUpdated;
+                rowsUpdated = rowsUpdated +
+                        mDB.update(FilterSchema.TABLE_NAME,
+                        values, select, selectArgs);
+                logDB.delete(LogSchema.TABLE_NAME, select, selectArgs);
             }
-            return 0;
+            return rowsUpdated;
         }
 
         @Override
@@ -376,6 +386,24 @@ public class FilterDrawerFragment extends Fragment {
             Toast.makeText(getActivity(), "Filter deleted",
                     Toast.LENGTH_SHORT).show();
         }
+    }
+
+    public String getFilterFromCursor(Cursor cursor) {
+        int pkgIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PKGNAME);
+        final String pkgName = cursor.getString(pkgIndex);
+        int tagIndex = cursor.getColumnIndex(FilterSchema.COLUMN_TAG);
+        final String tag = cursor.getString(tagIndex);
+        int priorityIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PRIORITY);
+        final String priority = cursor.getString(priorityIndex);
+        String filter = null;
+        if (TextUtils.isEmpty(pkgName)) {
+            if (!TextUtils.isEmpty(tag)) {
+                filter = tag + ":" + priority;
+            }
+        } else {
+            filter = pkgName;
+        }
+        return filter;
     }
 
     public class FilterCursorAdapter extends CursorAdapter {
@@ -393,21 +421,8 @@ public class FilterDrawerFragment extends Fragment {
 
         @Override
         public void bindView(View view, Context context, Cursor cursor) {
-            int pkgIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PKGNAME);
-            final String pkgName = cursor.getString(pkgIndex);
-            int tagIndex = cursor.getColumnIndex(FilterSchema.COLUMN_TAG);
-            final String tag = cursor.getString(tagIndex);
-            int priorityIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PRIORITY);
-            final String priority = cursor.getString(priorityIndex);
+            String filter = getFilterFromCursor(cursor);
             TextView textView = (TextView) view.findViewById(R.id.filterText);
-            String filter = null;
-            if (TextUtils.isEmpty(pkgName)) {
-                if (!TextUtils.isEmpty(tag)) {
-                    filter = tag + ":" + priority;
-                }
-            } else {
-                filter = pkgName;
-            }
             if (!TextUtils.isEmpty(filter)) {
                 textView.setText(filter);
             }

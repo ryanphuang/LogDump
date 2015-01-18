@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.preference.PreferenceManager;
 import android.support.v4.content.Loader;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -49,10 +50,12 @@ public class LogRealtimeFragment extends LogBaseFragment  {
 
     private Menu mMenu;
 
-    public static LogRealtimeFragment newInstance(String filterPkg) {
+    public static LogRealtimeFragment newInstance(String pkg, String tag, String priority) {
         LogRealtimeFragment fragment = new LogRealtimeFragment();
         Bundle args = new Bundle();
-        args.putString(ARG_PKG, filterPkg);
+        args.putString(ARG_PKG, pkg);
+        args.putString(ARG_TAG, tag);
+        args.putString(ARG_PRIORITY, priority);
         fragment.setArguments(args);
         return fragment;
     }
@@ -67,10 +70,6 @@ public class LogRealtimeFragment extends LogBaseFragment  {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mFilterPkg = getArguments().getString(ARG_PKG);
-        }
-        mLevelFilter = null;
         mCurrentTask = null;
         mPlayState = true;
     }
@@ -87,8 +86,11 @@ public class LogRealtimeFragment extends LogBaseFragment  {
         setListShown(false);
 
         mCurrentTask = new LogReadTask(true);
-        if (!TextUtils.isEmpty(mFilterPkg)) {
-            mCurrentTask.execute(new LogReadParam(mFilterPkg, null, null));
+        if (!TextUtils.isEmpty(mPkgFilter)) {
+            mCurrentTask.execute(new LogReadParam(mPkgFilter, null, null, null));
+        } else if (!TextUtils.isEmpty(mTagFilter) &&
+                !TextUtils.isEmpty(mPriorityFilter)) {
+            mCurrentTask.execute(new LogReadParam(null, mTagFilter, mPriorityFilter, null));
         } else {
             mCurrentTask.execute();
         }
