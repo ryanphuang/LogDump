@@ -255,10 +255,10 @@ public class LogRealtimeFragment extends LogBaseFragment  {
         protected void onProgressUpdate(LogStructure... values) {
             for (LogStructure value:values) {
                 mAdapter.addNewLog(value);
-            }
-            if (mRealTime) {
-                showList();
-                mAdapter.notifyDataSetChanged();
+                if (mRealTime) {
+                    showList();
+                    mAdapter.notifyDataSetChanged();
+                }
             }
         }
 

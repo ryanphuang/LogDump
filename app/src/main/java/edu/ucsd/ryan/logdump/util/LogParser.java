@@ -4,6 +4,7 @@ import android.util.Log;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,19 +19,39 @@ public class LogParser {
 
     public static String PATTERN_STR = "([0-9-:. ]+?) ([VDIWEFS])/(.+?)\\( *?(\\d+)\\):(.+)";
     public static Pattern PATTERN = Pattern.compile(PATTERN_STR);
-    private static final SimpleDateFormat SDF = new SimpleDateFormat("MM-DD HH:MM:SS.SSS");
-    private static final int YEAR = new Date().getYear();
+    private static final ThreadLocal<SimpleDateFormat> formatter = new
+            ThreadLocal<SimpleDateFormat>() {
+                @Override
+                public SimpleDateFormat initialValue() {
+                    return new SimpleDateFormat("MM-DD HH:MM:SS.SSS");
+                }
+            };
+
+    public static long parseTime(String timeStr) {
+        try {
+            Date date = formatter.get().parse(timeStr);
+            date.setYear(new Date().getYear());
+            /*
+            Now we can remove the check with ThreadLocal
+            if (date.after(new Date())) {
+                Log.e(TAG, "Impossible date: " + timeStr + ", " + date);
+                return -1;
+            }
+            */
+            return date.getTime();
+        } catch (ParseException e) {
+            Log.e(TAG, "Wrong date format: " + timeStr);
+        }
+        return -1;
+    }
 
     public static LogStructure parse(String log) {
         Matcher m = PATTERN.matcher(log);
         if (m.find()) {
-            try {
-                Date date = SDF.parse(m.group(1));
-                date.setYear(YEAR);
-                return new LogStructure(date.getTime(), m.group(2), m.group(3), m.group(4), m.group(5));
-            } catch (ParseException e) {
-                Log.e(TAG, "Wrong date format: " + m.group(1));
-                return null;
+            long time = parseTime(m.group(1));
+            if (time > 0) {
+                return new LogStructure(time,
+                        m.group(2), m.group(3), m.group(4), m.group(5));
             }
         }
         return null;
