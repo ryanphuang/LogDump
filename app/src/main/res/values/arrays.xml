@@ -9,4 +9,13 @@
         <item>Fatal</item>
         <item>Silent</item>
     </string-array>
+    <string-array name="log_level_abbrv">
+        <item>V</item>
+        <item>D</item>
+        <item>I</item>
+        <item>W</item>
+        <item>E</item>
+        <item>F</item>
+        <item>S</item>
+    </string-array>
 </resources>

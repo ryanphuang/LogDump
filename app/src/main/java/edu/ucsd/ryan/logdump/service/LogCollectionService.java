@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import edu.ucsd.ryan.logdump.data.FilterExpression;
 import edu.ucsd.ryan.logdump.data.FilterSchema;
 import edu.ucsd.ryan.logdump.data.LogReadParam;
 import edu.ucsd.ryan.logdump.data.LogSchema;
@@ -49,8 +50,8 @@ public class LogCollectionService extends Service {
     private int mCleanUpThreshold = MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MILLIS_PER_SECOND; // 1 hour
     private static final String ARCHIVE_CLEANUP_KEY = "log_archive_threshold";
 
-    private Set<String> mFilters;
-
+    private Set<String> mPkgFilters;
+    private List<FilterExpression> mExprFilters;
 
     @Override
     public void onCreate() {
@@ -61,8 +62,9 @@ public class LogCollectionService extends Service {
             Toast.makeText(this, "Read logs permission granted!",
                     Toast.LENGTH_SHORT).show();
         }
-        mFilters = new HashSet<>();
-        updateFilters();
+        mPkgFilters = new HashSet<>();
+        mExprFilters = new ArrayList<>();
+        updatePkgFilters();
         IntentFilter filter = new IntentFilter();
         filter.addAction(ACTION_COLLECT_LOG);
         filter.addAction(ACTION_CLEANUP_LOG);
@@ -164,23 +166,50 @@ public class LogCollectionService extends Service {
         }
     };
 
-    private Runnable mUpdateFilterRunnable = new Runnable() {
+    private Runnable mUpdatePkgFilterRunnable = new Runnable() {
         @Override
         public void run() {
             FilterDBHelper filterDBHelper = new FilterDBHelper(LogCollectionService.this);
             SQLiteDatabase filterDB = filterDBHelper.getWritableDatabase();
+            String select = FilterSchema.COLUMN_PKGNAME + " IS NOT NULL AND " +
+                    FilterSchema.COLUMN_CHECKED + "=?";
             Cursor cursor = filterDB.query(FilterSchema.TABLE_NAME,
-                    new String[] {FilterSchema.COLUMN_PKGNAME},
-                    FilterSchema.COLUMN_CHECKED + "=?", new String[] {String.valueOf(1)},
+                    new String[] {FilterSchema.COLUMN_TAG, FilterSchema.COLUMN_APP},
+                    select, new String[] {String.valueOf(1)},
                     null, null, null);
             cursor.moveToFirst();
             while (!cursor.isAfterLast()) {
-                mFilters.add(cursor.getString(0));
+                mPkgFilters.add(cursor.getString(0));
                 cursor.moveToNext();
             }
             cursor.close();
             filterDB.close();
-            Log.d(TAG, "Got filters: " + mFilters);
+            Log.d(TAG, "Got package filters: " + mPkgFilters);
+            collectLogs();
+        }
+    };
+
+    private Runnable mUpdateExprFilterRunnable = new Runnable() {
+        @Override
+        public void run() {
+            mExprFilters.clear();
+            FilterDBHelper filterDBHelper = new FilterDBHelper(LogCollectionService.this);
+            SQLiteDatabase filterDB = filterDBHelper.getWritableDatabase();
+            String select = FilterSchema.COLUMN_TAG + " IS NOT NULL AND " +
+                    FilterSchema.COLUMN_PRIORITY + " IS NOT NULL AND " +
+                    FilterSchema.COLUMN_CHECKED + "=?";
+            Cursor cursor = filterDB.query(FilterSchema.TABLE_NAME,
+                    new String[] {FilterSchema.COLUMN_TAG, FilterSchema.COLUMN_PRIORITY},
+                    select, new String[] {String.valueOf(1)},
+                    null, null, null);
+            cursor.moveToFirst();
+            while (!cursor.isAfterLast()) {
+                mExprFilters.add(new FilterExpression(cursor.getString(0), cursor.getString(1)));
+                cursor.moveToNext();
+            }
+            cursor.close();
+            filterDB.close();
+            Log.d(TAG, "Got filters expressions: " + mExprFilters);
             collectLogs();
         }
     };
@@ -210,9 +239,14 @@ public class LogCollectionService extends Service {
         }
     }
 
-    public void updateFilters() {
+    public void updatePkgFilters() {
         Log.d(TAG, "Update filters");
-        new Thread(mUpdateFilterRunnable).start();
+        new Thread(mUpdatePkgFilterRunnable).start();
+    }
+
+    public void updateExprFilters() {
+        Log.d(TAG, "Update expression filters");
+        new Thread(mUpdateExprFilterRunnable).start();
     }
 
     public void cleanupLogs() {
@@ -223,10 +257,13 @@ public class LogCollectionService extends Service {
     }
 
     public void collectLogs() {
-        Log.d(TAG, "Collect logs for " + mFilters);
+        Log.d(TAG, "Collect logs for " + mPkgFilters);
         List<LogReadParam> params = new ArrayList<>();
-        for (String pkg:mFilters) {
-            params.add(new LogReadParam(pkg, null, null));
+        for (String pkg: mPkgFilters) {
+            params.add(new LogReadParam(pkg, null, null, null));
+        }
+        for (FilterExpression expr:mExprFilters) {
+            params.add(new LogReadParam(null, expr.tag, expr.priority, null));
         }
         new Thread(new LogCollectionRunnable(params)).start();
     }

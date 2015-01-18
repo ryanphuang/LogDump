@@ -1,12 +1,12 @@
 package edu.ucsd.ryan.logdump;
 
-import android.app.DialogFragment;
+import android.app.AlertDialog;
 import android.content.ComponentName;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.IBinder;
-import android.preference.PreferenceActivity;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.widget.DrawerLayout;
@@ -15,9 +15,14 @@ import android.support.v7.app.ActionBarActivity;
 import android.text.TextUtils;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
-import edu.ucsd.ryan.logdump.fragment.FilterDialogFragment;
+import java.util.Set;
+
+import edu.ucsd.ryan.logdump.data.FilterExpression;
+import edu.ucsd.ryan.logdump.fragment.FilterAppDialogFragment;
 import edu.ucsd.ryan.logdump.fragment.FilterDrawerFragment;
+import edu.ucsd.ryan.logdump.fragment.FilterExpressionFragment;
 import edu.ucsd.ryan.logdump.fragment.LogHistoryFragment;
 import edu.ucsd.ryan.logdump.fragment.LogRealtimeFragment;
 import edu.ucsd.ryan.logdump.service.LogCollectionService;
@@ -27,7 +32,8 @@ import edu.ucsd.ryan.logdump.util.PackageHelper;
 
 public class MainActivity extends ActionBarActivity
         implements FilterDrawerFragment.FilterDrawerCallbacks,
-        FilterDialogFragment.FilterDialogListener,
+        FilterAppDialogFragment.FilterAppDialogListener,
+        FilterExpressionFragment.FilterExprDialogListener,
         LogHistoryFragment.OnLogEntrySelectedListener {
 
     /**
@@ -153,21 +159,44 @@ public class MainActivity extends ActionBarActivity
     }
 
     public void showFilterDialog() {
-        FilterDialogFragment fragment = FilterDialogFragment.newInstance(R.string.title_filter_dialog);
-        fragment.show(getFragmentManager(), "FilterDialogFragment");
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        final CharSequence[] choiceList = {"By app name", "By tag"};
+        builder.setTitle("Choose filter type")
+                .setSingleChoiceItems(choiceList, 0, null)
+                .setPositiveButton("OK", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        int selectedPosition = ((AlertDialog)dialog).getListView().getCheckedItemPosition();
+                        dialog.dismiss();
+                        if (selectedPosition == 0) {
+                            String title = getResources().getString(R.string.title_filter_app_dialog);
+                            FilterAppDialogFragment fragment = FilterAppDialogFragment.newInstance(title);
+                            fragment.show(getFragmentManager(), "FilterDialogFragment");
+                        } else {
+                            String title = getResources().getString(R.string.title_filter_tag_dialog);
+                            FilterExpressionFragment fragment = FilterExpressionFragment.newInstance(title);
+                            fragment.show(getFragmentManager(), "FilterExpressionFragment");
+                        }
+                    }
+                })
+                .create()
+                .show();
     }
 
     @Override
-    public void onFilterDialogPositiveClick(DialogFragment dialog) {
+    public void onFilterAppUpdated(Set<String> selectedPkgs) {
         mFilterDrawerFragment.refreshDrawerList();
         if (mBound) {
-            mService.updateFilters();
+            mService.updatePkgFilters();
         }
     }
 
     @Override
-    public void onFilterDialogNegativeClick(DialogFragment dialog) {
-
+    public void onFilterExprAdded(FilterExpression expression) {
+        mFilterDrawerFragment.refreshDrawerList();
+        if (mBound) {
+            mService.updateExprFilters();
+        }
     }
 
     @Override

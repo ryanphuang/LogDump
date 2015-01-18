@@ -9,11 +9,13 @@ import edu.ucsd.ryan.logdump.util.LogLevel;
  */
 public class LogReadParam {
     public String pkgFilter;
-    public LogLevel levelFilter;
+    public String tagFilter;
+    public String levelFilter;
     public Set<String> bufferFilters;
 
-    public LogReadParam(String pkg, LogLevel level, Set<String> buffers) {
+    public LogReadParam(String pkg, String tag, String level, Set<String> buffers) {
         pkgFilter = pkg;
+        tagFilter = tag;
         levelFilter = level;
         bufferFilters = buffers;
     }

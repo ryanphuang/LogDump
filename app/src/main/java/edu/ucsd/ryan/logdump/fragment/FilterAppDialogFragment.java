@@ -21,41 +21,43 @@ import edu.ucsd.ryan.logdump.util.FilterDBHelper;
 /**
  * Created by ryan on 1/11/15.
  */
-public class FilterDialogFragment extends DialogFragment {
-    public interface FilterDialogListener {
-        public void onFilterDialogPositiveClick(DialogFragment dialog);
-        public void onFilterDialogNegativeClick(DialogFragment dialog);
+public class FilterAppDialogFragment extends DialogFragment {
+    public interface FilterAppDialogListener {
+        public void onFilterAppUpdated(Set<String> selectedPkgs);
     }
 
     private static final String TITLE_KEY = "title";
-    private FilterDialogListener mListener;
+    private FilterAppDialogListener mListener;
 
     @Override
     public void onAttach(Activity activity) {
         super.onAttach(activity);
         try {
-            mListener = (FilterDialogListener) activity;
+            mListener = (FilterAppDialogListener) activity;
         } catch (ClassCastException e) {
             throw new ClassCastException(activity.toString()
-                    + " must implement NoticeDialogListener");
+                    + " must implement FilterAppDialogListener");
         }
     }
 
-    public static FilterDialogFragment newInstance(int title) {
-        FilterDialogFragment frag = new FilterDialogFragment();
+    public static FilterAppDialogFragment newInstance(String title) {
+        FilterAppDialogFragment frag = new FilterAppDialogFragment();
         Bundle args = new Bundle();
-        args.putInt(TITLE_KEY, title);
+        args.putString(TITLE_KEY, title);
         frag.setArguments(args);
         return frag;
     }
 
     @Override
     public Dialog onCreateDialog(Bundle savedInstanceState) {
-        int title = getArguments().getInt(TITLE_KEY);
+        String title = getArguments().getString(TITLE_KEY);
         final FilterDBHelper dbHelper = new FilterDBHelper(getActivity());
         final SQLiteDatabase db = dbHelper.getWritableDatabase();
-        final Cursor cursor = db.query(FilterSchema.TABLE_NAME, FilterSchema.DEFAULT_PROJECTION,
-                null, null, null, null, FilterSchema.COLUMN_APP);
+        final Cursor cursor = db.query(FilterSchema.TABLE_NAME,
+                FilterSchema.DEFAULT_PROJECTION,
+                FilterSchema.COLUMN_PKGNAME + " IS NOT NULL",
+                null, null, null,
+                FilterSchema.COLUMN_APP);
         final Set<String> selectedPkgs = new HashSet<>();
         cursor.moveToFirst();
         while (!cursor.isAfterLast()) {
@@ -100,7 +102,7 @@ public class FilterDialogFragment extends DialogFragment {
                                             FilterSchema.COLUMN_PKGNAME + "=?",
                                             new String[]{pkg});
                                 }
-                                mListener.onFilterDialogPositiveClick(FilterDialogFragment.this);
+                                mListener.onFilterAppUpdated(selectedPkgs);
                                 db.close();
                             }
                         })
@@ -108,7 +110,6 @@ public class FilterDialogFragment extends DialogFragment {
                         new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                mListener.onFilterDialogNegativeClick(FilterDialogFragment.this);
                                 db.close();
                             }
                         })

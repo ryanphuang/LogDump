@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TableLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:stretchColumns="1"
+    android:layout_height="match_parent">
+    <TableRow>
+        <TextView
+            android:padding="5dip"
+            android:id="@+id/tagLabel"
+            android:text="Tag: "
+            android:gravity="center_vertical" />
+        <EditText
+            android:paddingLeft="10dp"
+            android:id="@+id/tagText"
+            android:inputType="textFilter"
+            />
+    </TableRow>
+    <TableRow>
+        <TextView
+            android:padding="5dip"
+            android:id="@+id/priorityLable"
+            android:text="Priority:"
+            android:gravity="center_vertical"
+            />
+        <Spinner
+            android:id="@+id/priority"
+            android:entries="@array/log_level_abbrv"
+            />
+    </TableRow>
+</TableLayout>

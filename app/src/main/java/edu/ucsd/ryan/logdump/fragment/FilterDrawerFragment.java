@@ -227,9 +227,16 @@ public class FilterDrawerFragment extends Fragment {
 
     public void refreshDrawerList() {
         Log.d(TAG, "Refresh drawer list");
+        String select = "((" + FilterSchema.COLUMN_TAG + " IS NOT NULL AND " +
+                FilterSchema.COLUMN_PRIORITY + " IS NOT NULL) OR " +
+                FilterSchema.COLUMN_PKGNAME + " IS NOT NULL)) AND " +
+                FilterSchema.COLUMN_CHECKED + "=?";
+
         Cursor cursor = mDB.query(FilterSchema.TABLE_NAME, new String[]{
-                        FilterSchema._ID, FilterSchema.COLUMN_PKGNAME},
-                FilterSchema.COLUMN_CHECKED + "=?", new String[]{String.valueOf(1)},
+                        FilterSchema._ID, FilterSchema.COLUMN_PKGNAME,
+                        FilterSchema.COLUMN_TAG,
+                        FilterSchema.COLUMN_PRIORITY},
+                select, new String[]{String.valueOf(1)},
                 null, null, FilterSchema.COLUMN_PKGNAME);
 
         mDrawerListAdapter = new FilterCursorAdapter(getActivity(), cursor, 0);
@@ -386,30 +393,50 @@ public class FilterDrawerFragment extends Fragment {
 
         @Override
         public void bindView(View view, Context context, Cursor cursor) {
-            int index = cursor.getColumnIndex(FilterSchema.COLUMN_PKGNAME);
-            final String filter = cursor.getString(index);
+            int pkgIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PKGNAME);
+            final String pkgName = cursor.getString(pkgIndex);
+            int tagIndex = cursor.getColumnIndex(FilterSchema.COLUMN_TAG);
+            final String tag = cursor.getString(tagIndex);
+            int priorityIndex = cursor.getColumnIndex(FilterSchema.COLUMN_PRIORITY);
+            final String priority = cursor.getString(priorityIndex);
             TextView textView = (TextView) view.findViewById(R.id.filterText);
-            textView.setText(filter);
-            ImageButton button = (ImageButton) view.findViewById(R.id.deleteButton);
-
-            if (!TextUtils.isEmpty(filter)) {
-                button.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        new AlertDialog.Builder(getActivity())
-                                .setMessage("Delete filter " + filter + "?")
-                                .setCancelable(true)
-                                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        new DeleteFilterTask().execute(filter);
-                                    }
-                                })
-                                .setNegativeButton("No", null)
-                                .show();
-                    }
-                });
+            String filter = null;
+            if (TextUtils.isEmpty(pkgName)) {
+                if (!TextUtils.isEmpty(tag)) {
+                    filter = tag + ":" + priority;
+                }
+            } else {
+                filter = pkgName;
             }
+            if (!TextUtils.isEmpty(filter)) {
+                textView.setText(filter);
+            }
+            ImageButton button = (ImageButton) view.findViewById(R.id.deleteButton);
+            if (!TextUtils.isEmpty(filter)) {
+                button.setOnClickListener(new DeleteFilterListener(filter));
+            }
+        }
+    }
+
+    private class DeleteFilterListener implements View.OnClickListener {
+        private String mFilter;
+        public DeleteFilterListener(String filter) {
+            mFilter = filter;
+        }
+
+        @Override
+        public void onClick(View v) {
+            new AlertDialog.Builder(getActivity())
+                    .setMessage("Delete filter " + mFilter + "?")
+                    .setCancelable(true)
+                    .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialog, int which) {
+                            new DeleteFilterTask().execute(mFilter);
+                        }
+                    })
+                    .setNegativeButton("No", null)
+                    .show();
         }
     }
 }

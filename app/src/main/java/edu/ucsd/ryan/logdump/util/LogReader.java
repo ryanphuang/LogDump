@@ -19,7 +19,7 @@ import edu.ucsd.ryan.logdump.data.LogReadParam;
  * Created by ryan on 1/12/15.
  */
 public class LogReader {
-    private static final String LOGCAT_COMMAND = "logcat -d -v time -b main";
+    private static final String DEFAULT_LOGCAT_COMMAND = "logcat -d -v time";
     private static final String TAG = "LogReader";
     private static final boolean DEBUG = false;
 
@@ -29,8 +29,9 @@ public class LogReader {
     private Map<String, String> mPkgPidMap;
     private Process mProcess;
 
-    private boolean mFiltered;
+    private String mCommand;
 
+    private boolean mFiltered;
     private boolean mFinished;
     private volatile boolean mPaused;
 
@@ -55,8 +56,8 @@ public class LogReader {
     public void start() {
         if (mFiltered && mParams.size() == 0) // no need to collect for empty filter
             return;
-        updatePIDs();
-        CommandExecutor.simpleExecute(new String[]{LOGCAT_COMMAND}, false,
+        prepareArgs();
+        CommandExecutor.simpleExecute(new String[]{mCommand}, false,
                 new LogExecutionListener());
     }
 
@@ -83,9 +84,10 @@ public class LogReader {
         }
     }
 
-    private void updatePIDs() {
+    private void prepareArgs() {
         if (mParams == null)
             return;
+        StringBuilder sb = new StringBuilder();
         for (LogReadParam param:mParams) {
             if (!TextUtils.isEmpty(param.pkgFilter)) {
                 int pid = PackageHelper.getInstance(mContext).getPID(param.pkgFilter);
@@ -93,7 +95,20 @@ public class LogReader {
                     mPkgPidMap.put(param.pkgFilter, String.valueOf(pid));
                     Log.d(TAG, param.pkgFilter + " has pid filter " + pid);
                 }
+            } else if (!TextUtils.isEmpty(param.tagFilter) &&
+                    !TextUtils.isEmpty(param.levelFilter)) {
+                sb.append(param.tagFilter);
+                sb.append(":");
+                sb.append(param.levelFilter);
+                sb.append(" ");
             }
+        }
+        if (sb.length() > 0) {
+            sb.append(" *:S"); // suppress other tags
+            mCommand = DEFAULT_LOGCAT_COMMAND + " " + sb.toString();
+            Log.d(TAG, "Command: " + mCommand);
+        } else {
+            mCommand = DEFAULT_LOGCAT_COMMAND;
         }
     }
 

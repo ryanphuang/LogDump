@@ -12,13 +12,15 @@ import edu.ucsd.ryan.logdump.data.FilterSchema;
  */
 public class FilterDBHelper extends SQLiteOpenHelper {
     public final static String DBNAME = "filters.db";
-    public final static int DBVER = 1;
+    public final static int DBVER = 2;
 
     private final static String TAG = "FilterDBHelper";
 
     public final static String SQL_CREATE_FILER = "CREATE TABLE " +
             FilterSchema.TABLE_NAME +
             "("+ FilterSchema._ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
+            FilterSchema.COLUMN_TAG + " TEXT," +
+            FilterSchema.COLUMN_PRIORITY + " TEXT," +
             FilterSchema.COLUMN_PKGNAME + " TEXT UNIQUE," +
             FilterSchema.COLUMN_APP + " TEXT," +
             FilterSchema.COLUMN_CHECKED + " INTEGER" +
