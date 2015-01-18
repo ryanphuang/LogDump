@@ -271,14 +271,38 @@ public class LogCollectionService extends Service {
     }
 
     private void insertLog(String pkg, LogStructure structure) {
-        ContentValues values = new ContentValues();
-        values.put(LogSchema.COLUMN_PKGNAME, pkg);
-        values.put(LogSchema.COLUMN_APP, PackageHelper.getInstance(this).getName(pkg));
-        values.put(LogSchema.COLUMN_TIME, structure.time);
-        values.put(LogSchema.COLUMN_LEVEL, structure.level);
-        values.put(LogSchema.COLUMN_TAG, structure.tag);
-        values.put(LogSchema.COLUMN_TEXT, structure.text);
-        getContentResolver().insert(LogSchema.CONTENT_URI, values);
+        StringBuilder sb = new StringBuilder();
+        sb.append(LogSchema.COLUMN_TAG + "=? AND ");
+        sb.append(LogSchema.COLUMN_TIME + "=? AND ");
+        sb.append(LogSchema.COLUMN_LEVEL + "=? AND ");
+        sb.append(LogSchema.COLUMN_TEXT + "=?");
+
+        Cursor cursor = getContentResolver().query(LogSchema.CONTENT_URI,
+                new String[] {"COUNT(*) AS COUNT"},
+                sb.toString(), new String[] {structure.tag,
+                        String.valueOf(structure.time),
+                        structure.level, structure.text},
+                null);
+        cursor.moveToFirst();
+        boolean exists = false;
+        if (!cursor.isBeforeFirst() && !cursor.isAfterLast()) {
+            int cnt = cursor.getInt(0);
+            exists = cnt > 0;
+        }
+        cursor.close();
+        if (!exists) {
+            // Avoid duplicate insert
+            ContentValues values = new ContentValues();
+            values.put(LogSchema.COLUMN_PKGNAME, pkg);
+            values.put(LogSchema.COLUMN_APP, PackageHelper.getInstance(this).getName(pkg));
+            values.put(LogSchema.COLUMN_TIME, structure.time);
+            values.put(LogSchema.COLUMN_LEVEL, structure.level);
+            values.put(LogSchema.COLUMN_TAG, structure.tag);
+            values.put(LogSchema.COLUMN_TEXT, structure.text);
+            getContentResolver().insert(LogSchema.CONTENT_URI, values);
+        } else {
+            // Log.d(TAG, "Log exists!");
+        }
     }
 
     public class LocalBinder extends Binder {

@@ -137,7 +137,7 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
         String limit;
         String sortOrder;
         if (mFlushTop) {
-            sortOrder = LogSchema._ID + " DESC";
+            sortOrder = LogSchema.COLUMN_TIME + " DESC, " + LogSchema._ID + " DESC";
             limit = String.valueOf(MAX_LOGS);
         } else {
             Cursor cursor = getActivity().getContentResolver().query(LogSchema.CONTENT_URI,
@@ -152,7 +152,7 @@ public class LogHistoryFragment extends LogBaseFragment implements LoaderManager
                 Log.d(TAG, "offset=" + offset);
                 cursor.close();
             }
-            sortOrder = LogSchema._ID + " ASC";
+            sortOrder = LogSchema.COLUMN_TIME + " ASC"  + LogSchema._ID + " ASC";
             limit = offset + "," + String.valueOf(MAX_LOGS);
         }
         Uri uri = LogSchema.CONTENT_URI.buildUpon().appendQueryParameter(
